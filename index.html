@@ -1007,36 +1007,151 @@
         </div>
     </div>
 
+    <!-- Manage User Modal (Owner Only) -->
+    <div id="manageUserModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl card-shadow p-6 w-full max-w-md">
+            <div class="flex items-center justify-between gap-3 mb-4">
+                <div>
+                    <h3 class="text-xl font-bold text-gray-800">👑 Manage User</h3>
+                    <p class="text-sm text-gray-500">Reset password or delete account. (Passwords are not revealed.)</p>
+                </div>
+                <button onclick="closeManageUser()" class="text-gray-400 hover:text-gray-600 transition" aria-label="Close">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <div id="manageUserMsg" class="hidden mb-4 px-4 py-3 rounded-lg text-sm"></div>
+
+            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
+                <p class="text-sm text-gray-700"><span class="font-semibold">User:</span> <span id="manageUserDisplay"></span></p>
+                <p class="text-sm text-gray-700"><span class="font-semibold">Username:</span> @<span id="manageUserUsername"></span></p>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Set New Password</label>
+                    <input id="manageNewPassword" type="password" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500" placeholder="New password (min 6 chars)">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                    <input id="manageConfirmPassword" type="password" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500" placeholder="Confirm new password">
+                </div>
+
+                <label class="flex items-center gap-2 text-sm text-gray-700">
+                    <input id="manageDisable2FA" type="checkbox" class="w-4 h-4 text-indigo-600">
+                    Disable 2FA for this user
+                </label>
+
+                <div class="flex gap-3 pt-2">
+                    <button onclick="closeManageUser()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-semibold transition">Cancel</button>
+                    <button onclick="saveManagedUser()" class="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">Save</button>
+                </div>
+
+                <div class="border-t border-gray-200 pt-4">
+                    <button onclick="ownerDeleteUser()" class="w-full bg-red-50 hover:bg-red-100 text-red-700 py-3 rounded-lg font-semibold transition">🗑️ Delete this account</button>
+                    <p class="mt-2 text-[11px] text-gray-500">Demo note: this is a front-end app. In production, password resets and deletes should be done via secure server-side admin tooling.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Chat Modal -->
     <div id="chatModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl card-shadow w-full max-w-lg h-[600px] flex flex-col overflow-hidden">
+        <div class="bg-white rounded-2xl card-shadow w-full max-w-2xl h-[650px] flex flex-col overflow-hidden">
             <div class="bg-gradient-to-r from-indigo-500 to-purple-600 p-4 text-white flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <span class="text-2xl">💬</span>
                     <div>
-                        <h3 class="font-bold text-lg">Community Chat</h3>
+                        <h3 class="font-bold text-lg" id="chatTitle">Chat</h3>
                         <p class="text-xs opacity-80" id="chatOnlineCount">Connecting...</p>
                     </div>
                 </div>
-                <button onclick="closeChat()" class="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition">
+                <button onclick="closeChat()" class="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition" aria-label="Close">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
                 </button>
             </div>
 
+            <div class="px-4 py-3 border-b border-gray-200 bg-white space-y-3">
+                <div class="flex items-center justify-between gap-3 flex-wrap">
+                    <div class="flex gap-2 flex-wrap">
+                        <button id="chatTabPublic" onclick="setChatMode('public')" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white">Public</button>
+                        <button id="chatTabDm" onclick="setChatMode('dm')" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gray-100 text-gray-700">DMs</button>
+                        <button id="chatTabGroup" onclick="setChatMode('group')" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gray-100 text-gray-700">Groups</button>
+                    </div>
+
+                    <div id="chatOwnerTools" class="hidden flex gap-2 flex-wrap">
+                        <button onclick="clearCurrentChat()" class="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg transition">Clear Channel</button>
+                        <button onclick="toggleChatIds()" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-2 rounded-lg transition">Toggle IDs</button>
+                    </div>
+                </div>
+
+                <div id="chatModeHelp" class="text-xs text-gray-500">
+                    Commands: <span class="font-mono">/help</span> <span class="font-mono">/me</span> <span class="font-mono">/dm @user msg</span> <span class="font-mono">/create-group name</span> <span class="font-mono">/join name</span> <span class="font-mono">/group name msg</span>
+                </div>
+
+                <div id="chatModeDmControls" class="hidden flex gap-2 flex-wrap items-center">
+                    <select id="dmUserSelect" class="flex-1 min-w-48 px-3 py-2 border border-gray-300 rounded-lg text-sm"></select>
+                    <button onclick="startDM()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">Start DM</button>
+                </div>
+
+                <div id="chatModeGroupControls" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    <!-- WhatsApp-like group list -->
+                    <div class="lg:col-span-1 bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col">
+                        <div class="p-3 border-b border-gray-200 bg-white space-y-2">
+                            <div class="flex items-center gap-2">
+                                <input id="groupSearch" type="text" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Search groups">
+                                <button onclick="refreshGroupsUI()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-2 rounded-lg text-sm font-semibold transition" title="Refresh">↻</button>
+                            </div>
+
+                            <div class="flex gap-2">
+                                <button id="groupFilterAll" onclick="setGroupFilter('all')" class="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700">All</button>
+                                <button id="groupFilterJoined" onclick="setGroupFilter('joined')" class="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white">Joined</button>
+                            </div>
+
+                            <div class="flex gap-2">
+                                <input id="newGroupName" type="text" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="New group name">
+                                <button onclick="createGroupFromUI()" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">Create</button>
+                            </div>
+
+                            <p class="text-[11px] text-gray-500">Click a group to open. If you’re not joined yet, tap Join.</p>
+                        </div>
+
+                        <!-- Keep hidden select for backward compatibility with older handlers -->
+                        <select id="groupSelect" class="hidden"></select>
+
+                        <div id="groupList" class="flex-1 overflow-y-auto bg-white"></div>
+                    </div>
+
+                    <!-- Active group quick actions -->
+                    <div class="lg:col-span-2 bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3 flex-wrap">
+                        <div>
+                            <p class="text-sm font-bold text-gray-800" id="groupActiveTitle">Select a group</p>
+                            <p class="text-xs text-gray-500" id="groupActiveMeta">Your group messages will appear below.</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="groupJoinBtn" onclick="joinCurrentOpenGroup()" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">Join</button>
+                            <button id="groupLeaveBtn" onclick="leaveCurrentGroup()" class="hidden bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg text-sm font-semibold transition">Leave</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div id="chatCloudWarn" class="hidden px-4 py-2 text-xs bg-amber-50 border-b border-amber-200 text-amber-900"></div>
-            
+
             <div id="chatMessages" class="flex-1 p-4 overflow-y-auto space-y-3 bg-gray-50">
                 <div class="text-center text-gray-400 text-sm py-8">
                     <span class="text-3xl block mb-2">💬</span>
                     Loading messages...
                 </div>
             </div>
-            
+
             <div class="p-4 border-t border-gray-200 bg-white">
                 <div class="flex gap-2">
-                    <input type="text" id="chatInput" class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500 transition" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()">
+                    <input type="text" id="chatInput" class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500 transition" placeholder="Type a message or /help" onkeypress="if(event.key==='Enter')sendMessage()">
                     <button onclick="sendMessage()" class="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition flex items-center gap-2">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>

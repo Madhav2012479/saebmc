@@ -823,19 +823,20 @@ function renderUsersList() {
     // NOTE: caller should await refreshUsersForPanel()/loadUsers() before rendering
     const container = document.getElementById('usersList');
     const isOwner = currentUser.role === 'owner';
-    
+
     container.innerHTML = users.map(user => {
-        const avatarGradient = user.role === 'owner' 
-            ? 'from-red-500 to-rose-600' 
+        const avatarGradient = user.role === 'owner'
+            ? 'from-red-500 to-rose-600'
             : (user.role === 'admin' ? 'from-amber-500 to-orange-600' : 'from-indigo-500 to-purple-600');
-        
-        const roleBadge = user.role === 'owner' 
+
+        const roleBadge = user.role === 'owner'
             ? '<span class="owner-badge text-xs px-2 py-1 rounded-full text-white font-bold">OWNER</span>'
             : (user.role === 'admin' ? '<span class="admin-badge text-xs px-2 py-1 rounded-full text-white font-bold">ADMIN</span>' : '');
-        
+
         let roleButton = '';
         let transferButton = '';
-        
+        let manageButton = '';
+
         if (user.role === 'owner') {
             roleButton = '<span class="bg-gradient-to-r from-red-500 to-rose-600 text-white px-3 py-2 rounded-lg text-sm cursor-not-allowed shadow-lg font-bold animate-pulse">👑 UNTOUCHABLE</span>';
         } else if (isOwner) {
@@ -845,6 +846,7 @@ function renderUsersList() {
             transferButton = `<button onclick="openTransferModal('${user.username}', '${user.name}')" class="bg-gradient-to-r from-red-500 to-rose-600 hover:opacity-90 text-white px-3 py-2 rounded-lg text-sm transition font-medium shadow-lg">
                 👑 Transfer Ownership
             </button>`;
+            manageButton = `<button onclick="openManageUser('${user.username}')" class="bg-gray-900 hover:bg-black text-white px-3 py-2 rounded-lg text-sm transition font-medium">⚙️ Manage</button>`;
         } else if (currentUser.role === 'admin' && user.role !== 'admin' && user.role !== 'owner') {
             roleButton = `<button onclick="toggleRole('${user.username}')" class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg text-sm transition font-medium">
                 ⬆ Make Admin
@@ -852,7 +854,7 @@ function renderUsersList() {
         } else if (currentUser.role === 'admin' && user.role === 'admin' && user.username !== currentUser.username) {
             roleButton = '<span class="bg-gray-300 text-gray-500 px-3 py-2 rounded-lg text-sm cursor-not-allowed">Equal Rank</span>';
         }
-        
+
         return `
         <div class="flex items-center justify-between bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition flex-wrap gap-3">
             <div class="flex items-center gap-3">
@@ -875,6 +877,7 @@ function renderUsersList() {
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                     Edit Page
                 </button>
+                ${manageButton}
                 ${roleButton}
                 ${transferButton}
             </div>
@@ -885,6 +888,167 @@ function renderUsersList() {
 // ==========================================
 // OWNERSHIP TRANSFER FUNCTIONS
 // ==========================================
+
+// ==========================================
+// OWNER: MANAGE USER (RESET PASSWORD / DISABLE 2FA / DELETE)
+// ==========================================
+
+let managingUsername = null;
+
+function setManageUserMsg(text, kind = 'info') {
+    const el = document.getElementById('manageUserMsg');
+    if (!el) return;
+    if (!text) {
+        el.classList.add('hidden');
+        el.textContent = '';
+        return;
+    }
+
+    el.textContent = text;
+    el.classList.remove('hidden');
+    el.className = kind === 'error'
+        ? 'mb-4 px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-800'
+        : (kind === 'success'
+            ? 'mb-4 px-4 py-3 rounded-lg text-sm bg-emerald-50 border border-emerald-200 text-emerald-800'
+            : 'mb-4 px-4 py-3 rounded-lg text-sm bg-indigo-50 border border-indigo-200 text-indigo-800');
+}
+
+function openManageUser(username) {
+    if (!currentUser || currentUser.role !== 'owner') {
+        alert('Only the Owner can manage users.');
+        return;
+    }
+
+    const u = users.find(x => x.username === username);
+    if (!u) {
+        alert('User not found');
+        return;
+    }
+
+    if (u.username === 'gamerking') {
+        alert('The Owner account cannot be managed here.');
+        return;
+    }
+
+    managingUsername = username;
+
+    document.getElementById('manageUserDisplay').textContent = `${u.name} (@${u.username})`;
+    document.getElementById('manageUserUsername').textContent = u.username;
+    document.getElementById('manageNewPassword').value = '';
+    document.getElementById('manageConfirmPassword').value = '';
+    document.getElementById('manageDisable2FA').checked = false;
+
+    setManageUserMsg('', 'info');
+    document.getElementById('manageUserModal').classList.remove('hidden');
+}
+
+function closeManageUser() {
+    managingUsername = null;
+    const modal = document.getElementById('manageUserModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function saveManagedUser() {
+    if (!currentUser || currentUser.role !== 'owner') return;
+    if (!managingUsername) return;
+
+    const idx = users.findIndex(u => u.username === managingUsername);
+    if (idx === -1) {
+        setManageUserMsg('User not found.', 'error');
+        return;
+    }
+
+    const target = users[idx];
+
+    if (target.username === 'gamerking') {
+        setManageUserMsg('Owner account cannot be edited here.', 'error');
+        return;
+    }
+
+    const newPass = document.getElementById('manageNewPassword').value;
+    const confirmPass = document.getElementById('manageConfirmPassword').value;
+    const disable2FAFlag = document.getElementById('manageDisable2FA').checked;
+
+    if ((newPass || confirmPass) && newPass.length < 6) {
+        setManageUserMsg('New password must be at least 6 characters.', 'error');
+        return;
+    }
+
+    if (newPass !== confirmPass) {
+        setManageUserMsg('Passwords do not match.', 'error');
+        return;
+    }
+
+    if (newPass) {
+        target.password = newPass;
+    }
+
+    if (disable2FAFlag) {
+        target.twoFactorEnabled = false;
+        target.twoFactorSecret = null;
+    }
+
+    users[idx] = target;
+    saveUsers();
+
+    if (isCloudEnabled()) {
+        try {
+            await cloudUpsertUser(target);
+        } catch (e) {
+            console.warn(e);
+            setManageUserMsg('Saved locally, but cloud sync failed: ' + (e?.message || e), 'error');
+            return;
+        }
+    }
+
+    setManageUserMsg('Saved successfully.', 'success');
+
+    // Refresh panel list
+    renderUsersList();
+
+    setTimeout(() => {
+        closeManageUser();
+    }, 900);
+}
+
+async function ownerDeleteUser() {
+    if (!currentUser || currentUser.role !== 'owner') return;
+    if (!managingUsername) return;
+
+    const target = users.find(u => u.username === managingUsername);
+    if (!target) {
+        setManageUserMsg('User not found.', 'error');
+        return;
+    }
+
+    if (target.username === 'gamerking') {
+        setManageUserMsg('Owner account cannot be deleted.', 'error');
+        return;
+    }
+
+    const ok = confirm(`Delete @${target.username}? This cannot be undone.`);
+    if (!ok) return;
+
+    users = users.filter(u => u.username !== managingUsername);
+    saveUsers();
+
+    if (isCloudEnabled()) {
+        try {
+            await cloudDeleteUserByUsername(managingUsername);
+        } catch (e) {
+            console.warn(e);
+            setManageUserMsg('Deleted locally, but cloud sync failed: ' + (e?.message || e), 'error');
+            // still close after showing error
+        }
+    }
+
+    setManageUserMsg('User deleted.', 'success');
+    renderUsersList();
+
+    setTimeout(() => {
+        closeManageUser();
+    }, 700);
+}
 
 function openTransferModal(username, name) {
     transferTargetUsername = username;
@@ -1648,15 +1812,21 @@ document.addEventListener('keydown', function(e) {
         closePublishModal();
         closeCloudSync();
         closeChat();
+        closeManageUser();
     }
 });
 
 document.addEventListener('DOMContentLoaded', function() {
-    ['editProfileModal', 'deleteModal', 'twoFactorModal', 'pageEditorModal', 'transferOwnerModal', 'siteEditorModal', 'aiAssistantModal', 'publishModal', 'cloudSyncModal', 'chatModal'].forEach(id => {
+    ['editProfileModal', 'deleteModal', 'twoFactorModal', 'pageEditorModal', 'transferOwnerModal', 'siteEditorModal', 'aiAssistantModal', 'publishModal', 'cloudSyncModal', 'chatModal', 'manageUserModal'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('click', function(e) {
-                if (e.target === this) this.classList.add('hidden');
+                if (e.target === this) {
+                    // Use dedicated closers when available
+                    if (id === 'manageUserModal') closeManageUser();
+                    else if (id === 'chatModal') closeChat();
+                    else this.classList.add('hidden');
+                }
             });
         }
     });
@@ -2021,11 +2191,13 @@ function resetSiteSettings() {
 function getCloudSQL() {
     return [
         '-- DEMO ONLY SQL (Supabase) — run in SQL editor',
-        '-- Creates shared tables for: users + chat messages.',
+        '-- Creates shared tables for: users + chat (public/DM/groups).',
         '-- This is intentionally permissive for a demo. DO NOT use as-is in production.',
         '',
         '-- (Optional) start fresh:',
-        '-- drop table if exists public.messages;',
+        '-- drop table if exists public.chat_groups;',
+        '-- drop table if exists public.chat_group_members;',
+        '-- drop table if exists public.chat_messages;',
         '-- drop table if exists public.users;',
         '',
         'create table if not exists public.users (',
@@ -2040,20 +2212,44 @@ function getCloudSQL() {
         '  created_at timestamp with time zone default now()',
         ');',
         '',
-        'create table if not exists public.messages (',
+        '-- Chat messages table (supports public + DMs + groups)',
+        'create table if not exists public.chat_messages (',
         '  id bigint generated by default as identity primary key,',
-        '  username text not null,',
-        '  message text not null,',
+        '  channel_type text not null default \'public\', -- public|dm|group',
+        '  channel_id text not null default \'public\',   -- for dm: dm:userA|userB, for group: group name',
+        '  sender text not null,',
+        '  body text not null,',
         '  created_at timestamp with time zone default now()',
+        ');',
+        '',
+        '-- Groups table',
+        'create table if not exists public.chat_groups (',
+        '  id bigint generated by default as identity primary key,',
+        '  name text unique not null,',
+        '  owner text not null,',
+        '  created_at timestamp with time zone default now()',
+        ');',
+        '',
+        '-- Group membership table',
+        'create table if not exists public.chat_group_members (',
+        '  id bigint generated by default as identity primary key,',
+        '  group_name text not null,',
+        '  username text not null,',
+        '  created_at timestamp with time zone default now(),',
+        '  unique (group_name, username)',
         ');',
         '',
         '-- DEMO: Disable RLS so anon key can read/write without policies',
         'alter table public.users disable row level security;',
-        'alter table public.messages disable row level security;',
+        'alter table public.chat_messages disable row level security;',
+        'alter table public.chat_groups disable row level security;',
+        'alter table public.chat_group_members disable row level security;',
         '',
         '-- Grants',
         'grant all on public.users to anon;',
-        'grant all on public.messages to anon;',
+        'grant all on public.chat_messages to anon;',
+        'grant all on public.chat_groups to anon;',
+        'grant all on public.chat_group_members to anon;',
         'grant usage on schema public to anon;',
         ''
     ].join('\n');
@@ -2217,31 +2413,49 @@ async function copyCloudSQL() {
 }
 
 // ==========================================
-// CHAT SYSTEM
+// CHAT SYSTEM (Public + DMs + Groups + Commands)
 // ==========================================
 
 let chatMessages = [];
 let chatPollingInterval = null;
-
-function loadLocalMessages() {
-    try {
-        const stored = localStorage.getItem('chatMessages');
-        chatMessages = stored ? JSON.parse(stored) : [];
-    } catch (e) {
-        chatMessages = [];
-    }
-}
-
-function saveLocalMessages() {
-    try {
-        localStorage.setItem('chatMessages', JSON.stringify(chatMessages.slice(-100))); // Keep last 100
-    } catch (e) {
-        console.warn('Could not save messages:', e);
-    }
-}
-
 let chatCloudOk = null; // null = unknown, true/false after first attempt
 let chatCloudLastError = '';
+
+let chatMode = 'public'; // public | dm | group
+let currentChannel = { type: 'public', id: 'public', title: 'Public Chat' };
+let currentDmWith = null; // username
+let currentGroup = null; // group name
+let chatShowIds = false;
+
+// Legacy Cloud Chat fallback support:
+// If your Supabase does NOT have chat_messages/chat_groups tables, we can still support Public/DM/Group
+// by storing tagged payloads inside the older `messages.message` column.
+const LEGACY_CHAT_TAG = '__LSCHAT__';
+
+function encodeLegacyChatPayload(channel_type, channel_id, body) {
+    return LEGACY_CHAT_TAG + JSON.stringify({ channel_type, channel_id, body });
+}
+
+function decodeLegacyChatPayload(message) {
+    if (typeof message !== 'string') return null;
+    if (!message.startsWith(LEGACY_CHAT_TAG)) return null;
+    const json = message.slice(LEGACY_CHAT_TAG.length);
+    try {
+        return JSON.parse(json);
+    } catch {
+        return null;
+    }
+}
+
+function normalizeUsername(u) {
+    return (u || '').trim().toLowerCase();
+}
+
+function dmChannelId(a, b) {
+    const x = normalizeUsername(a);
+    const y = normalizeUsername(b);
+    return `dm:${[x, y].sort().join('|')}`;
+}
 
 function setChatCloudWarn(text) {
     const el = document.getElementById('chatCloudWarn');
@@ -2255,47 +2469,951 @@ function setChatCloudWarn(text) {
     el.classList.remove('hidden');
 }
 
-async function cloudLoadMessages() {
-    if (!isCloudEnabled()) return [];
+function loadLocalChatStore() {
     try {
-        const rows = await supabaseFetch('messages?select=*&order=created_at.asc&limit=100');
-        chatCloudOk = true;
-        chatCloudLastError = '';
-        return Array.isArray(rows) ? rows : [];
-    } catch (e) {
-        chatCloudOk = false;
-        chatCloudLastError = e?.message || String(e);
-        console.warn('Cloud messages fetch failed:', e);
-        return null; // null means cloud failed
+        const stored = localStorage.getItem('chatStoreV2');
+        const data = stored ? JSON.parse(stored) : null;
+        return data && typeof data === 'object' ? data : { messages: [], groups: [], members: [] };
+    } catch {
+        return { messages: [], groups: [], members: [] };
     }
 }
 
-async function cloudSendMessage(username, message) {
-    if (!isCloudEnabled()) return null;
+function saveLocalChatStore(store) {
     try {
-        const rows = await supabaseFetch('messages', {
-            method: 'POST',
-            body: JSON.stringify({ username, message })
-        });
+        localStorage.setItem('chatStoreV2', JSON.stringify(store));
+    } catch (e) {
+        console.warn('Could not save chat store:', e);
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function isOwnerOrAdmin() {
+    return currentUser?.role === 'owner' || currentUser?.role === 'admin';
+}
+
+function isOwner() {
+    return currentUser?.role === 'owner';
+}
+
+function updateChatHeader() {
+    const titleEl = document.getElementById('chatTitle');
+    if (titleEl) titleEl.textContent = currentChannel.title || 'Chat';
+
+    const tools = document.getElementById('chatOwnerTools');
+    if (tools) {
+        // owner tools only
+        tools.classList.toggle('hidden', !isOwner());
+    }
+
+    // Tab button styles
+    const tabPublic = document.getElementById('chatTabPublic');
+    const tabDm = document.getElementById('chatTabDm');
+    const tabGroup = document.getElementById('chatTabGroup');
+
+    const activeCls = 'px-3 py-1.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white';
+    const idleCls = 'px-3 py-1.5 rounded-lg text-sm font-semibold bg-gray-100 text-gray-700';
+
+    if (tabPublic) tabPublic.className = (chatMode === 'public') ? activeCls : idleCls;
+    if (tabDm) tabDm.className = (chatMode === 'dm') ? activeCls : idleCls;
+    if (tabGroup) tabGroup.className = (chatMode === 'group') ? activeCls : idleCls;
+
+    const dmControls = document.getElementById('chatModeDmControls');
+    const groupControls = document.getElementById('chatModeGroupControls');
+    if (dmControls) dmControls.classList.toggle('hidden', chatMode !== 'dm');
+    if (groupControls) groupControls.classList.toggle('hidden', chatMode !== 'group');
+}
+
+function updateOnlineCount() {
+    const el = document.getElementById('chatOnlineCount');
+    if (!el) return;
+
+    const modeLabel = currentChannel?.title ? currentChannel.title : 'Chat';
+
+    if (!isCloudEnabled()) {
+        el.textContent = `Local • ${modeLabel}`;
+        return;
+    }
+
+    if (chatCloudOk === false) {
+        el.textContent = `Cloud enabled • Chat offline (local fallback)`;
+        return;
+    }
+
+    el.textContent = `${users.length} users • ${modeLabel}`;
+}
+
+async function supabaseChatFetch(path, opts = {}) {
+    // wrapper so errors are recorded for the chat warning bar
+    try {
+        const res = await supabaseFetch(path, opts);
         chatCloudOk = true;
         chatCloudLastError = '';
-        return rows?.[0] || null;
+        return res;
     } catch (e) {
         chatCloudOk = false;
         chatCloudLastError = e?.message || String(e);
-        console.warn('Cloud send message failed:', e);
-        return null;
+        throw e;
     }
+}
+
+async function cloudListGroups() {
+    // Prefer proper groups table
+    try {
+        const rows = await supabaseChatFetch('chat_groups?select=*&order=created_at.desc&limit=200');
+        return Array.isArray(rows) ? rows : [];
+    } catch (e) {
+        // Legacy fallback: infer groups from tagged rows in `messages`
+        try {
+            const rows = await supabaseChatFetch('messages?select=*&order=created_at.desc&limit=500');
+            const arr = Array.isArray(rows) ? rows : [];
+            const set = new Set();
+            for (const r of arr) {
+                const decoded = decodeLegacyChatPayload(r.message);
+                if (decoded?.channel_type === 'group' && typeof decoded.channel_id === 'string') {
+                    // decoded.channel_id is like group:NAME
+                    const id = decoded.channel_id;
+                    const name = id.startsWith('group:') ? id.slice('group:'.length) : id;
+                    if (name) set.add(name);
+                }
+            }
+            return Array.from(set).map((name, i) => ({ id: i + 1, name, owner: '', created_at: new Date().toISOString() }));
+        } catch {
+            throw e;
+        }
+    }
+}
+
+async function cloudListGroupMembers(groupName) {
+    // Prefer proper membership table
+    try {
+        const rows = await supabaseChatFetch(`chat_group_members?select=*&group_name=eq.${encodeURIComponent(groupName)}&limit=500`);
+        return Array.isArray(rows) ? rows : [];
+    } catch (e) {
+        // Legacy fallback: treat everyone as "allowed" (demo)
+        return users.map(u => ({ group_name: groupName, username: u.username }));
+    }
+}
+
+async function cloudJoinGroup(groupName, username) {
+    const payload = { group_name: groupName, username };
+    // Prefer membership table
+    try {
+        await supabaseChatFetch('chat_group_members', { method: 'POST', body: JSON.stringify(payload) });
+        return true;
+    } catch (e) {
+        // Legacy fallback: store membership locally only (still allows group chat if using legacy tagged messages)
+        localJoinGroup(groupName, username);
+        return true;
+    }
+}
+
+async function cloudLeaveGroup(groupName, username) {
+    try {
+        await supabaseChatFetch(`chat_group_members?group_name=eq.${encodeURIComponent(groupName)}&username=eq.${encodeURIComponent(username)}`, { method: 'DELETE' });
+    } catch {
+        // Legacy fallback: local only
+        localLeaveGroup(groupName, username);
+    }
+}
+
+async function cloudCreateGroup(groupName, ownerUsername) {
+    const payload = { name: groupName, owner: ownerUsername };
+    try {
+        const rows = await supabaseChatFetch('chat_groups', { method: 'POST', body: JSON.stringify(payload) });
+        return rows?.[0] || null;
+    } catch (e) {
+        // Legacy fallback: no server-side groups table; just create locally.
+        try { localCreateGroup(groupName, ownerUsername); } catch {}
+        return { id: Date.now(), name: groupName, owner: ownerUsername, created_at: new Date().toISOString() };
+    }
+}
+
+async function cloudLoadChannelMessages(channelType, channelId) {
+    try {
+        const rows = await supabaseChatFetch(`chat_messages?select=*&channel_type=eq.${encodeURIComponent(channelType)}&channel_id=eq.${encodeURIComponent(channelId)}&order=created_at.asc&limit=200`);
+        return Array.isArray(rows) ? rows : [];
+    } catch (e) {
+        // Legacy fallback: use `messages` table with tagged payloads.
+        // Also support old public-only schema where message is plain text.
+        try {
+            const rows = await supabaseChatFetch('messages?select=*&order=created_at.asc&limit=500');
+            const arr = Array.isArray(rows) ? rows : [];
+
+            const mapped = [];
+            for (const r of arr) {
+                const decoded = decodeLegacyChatPayload(r.message);
+
+                if (decoded) {
+                    if (decoded.channel_type === channelType && decoded.channel_id === channelId) {
+                        mapped.push({
+                            id: r.id,
+                            channel_type: decoded.channel_type,
+                            channel_id: decoded.channel_id,
+                            sender: r.username,
+                            body: decoded.body,
+                            created_at: r.created_at
+                        });
+                    }
+                } else {
+                    // Oldest legacy: public-only plain string messages
+                    if (channelType === 'public' && channelId === 'public') {
+                        mapped.push({
+                            id: r.id,
+                            channel_type: 'public',
+                            channel_id: 'public',
+                            sender: r.username,
+                            body: r.message,
+                            created_at: r.created_at
+                        });
+                    }
+                }
+            }
+
+            return mapped.slice(-200);
+        } catch (e2) {
+            throw e2;
+        }
+    }
+}
+
+async function cloudSendChannelMessage(channelType, channelId, sender, body) {
+    try {
+        const payload = { channel_type: channelType, channel_id: channelId, sender, body };
+        const rows = await supabaseChatFetch('chat_messages', { method: 'POST', body: JSON.stringify(payload) });
+        return rows?.[0] || null;
+    } catch (e) {
+        // Legacy fallback: send via `messages` table.
+        // - If public plain legacy: store plain message
+        // - Otherwise: store tagged payload so we can filter per channel.
+        const legacyPayload = (channelType === 'public' && channelId === 'public')
+            ? body
+            : encodeLegacyChatPayload(channelType, channelId, body);
+
+        const rows = await supabaseChatFetch('messages', {
+            method: 'POST',
+            body: JSON.stringify({ username: sender, message: legacyPayload })
+        });
+
+        const r = rows?.[0] || null;
+        if (!r) return null;
+
+        if (channelType === 'public' && channelId === 'public') {
+            return {
+                id: r.id,
+                channel_type: 'public',
+                channel_id: 'public',
+                sender: r.username,
+                body: r.message,
+                created_at: r.created_at
+            };
+        }
+
+        return {
+            id: r.id,
+            channel_type: channelType,
+            channel_id: channelId,
+            sender: r.username,
+            body,
+            created_at: r.created_at
+        };
+    }
+}
+
+async function cloudDeleteMessageById(id) {
+    try {
+        await supabaseChatFetch(`chat_messages?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+    } catch (e) {
+        // Legacy fallback: delete from `messages`
+        await supabaseChatFetch(`messages?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+    }
+}
+
+async function cloudClearChannel(channelType, channelId) {
+    try {
+        await supabaseChatFetch(`chat_messages?channel_type=eq.${encodeURIComponent(channelType)}&channel_id=eq.${encodeURIComponent(channelId)}`, { method: 'DELETE' });
+    } catch (e) {
+        // Legacy fallback: clear by fetching recent and deleting those matching the channel tag.
+        const rows = await supabaseChatFetch('messages?select=id,message&order=created_at.desc&limit=1000');
+        const arr = Array.isArray(rows) ? rows : [];
+        const idsToDelete = [];
+
+        for (const r of arr) {
+            const decoded = decodeLegacyChatPayload(r.message);
+            if (decoded) {
+                if (decoded.channel_type === channelType && decoded.channel_id === channelId) {
+                    idsToDelete.push(r.id);
+                }
+            } else {
+                // plain public legacy
+                if (channelType === 'public' && channelId === 'public') {
+                    idsToDelete.push(r.id);
+                }
+            }
+        }
+
+        for (const id of idsToDelete) {
+            await supabaseChatFetch(`messages?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+        }
+    }
+}
+
+function localLoadChannelMessages(channelType, channelId) {
+    const store = loadLocalChatStore();
+    const rows = (store.messages || []).filter(m => m.channel_type === channelType && m.channel_id === channelId);
+    return rows.slice(-200);
+}
+
+function localSendChannelMessage(channelType, channelId, sender, body) {
+    const store = loadLocalChatStore();
+    store.messages = store.messages || [];
+    const msg = {
+        id: Date.now(),
+        channel_type: channelType,
+        channel_id: channelId,
+        sender,
+        body,
+        created_at: new Date().toISOString()
+    };
+    store.messages.push(msg);
+    store.messages = store.messages.slice(-800);
+    saveLocalChatStore(store);
+    return msg;
+}
+
+function localClearChannel(channelType, channelId) {
+    const store = loadLocalChatStore();
+    store.messages = (store.messages || []).filter(m => !(m.channel_type === channelType && m.channel_id === channelId));
+    saveLocalChatStore(store);
+}
+
+function localListGroups() {
+    const store = loadLocalChatStore();
+    return (store.groups || []).slice();
+}
+
+function localCreateGroup(name, owner) {
+    const store = loadLocalChatStore();
+    store.groups = store.groups || [];
+    if (store.groups.some(g => g.name === name)) throw new Error('Group already exists');
+    const g = { id: Date.now(), name, owner, created_at: new Date().toISOString() };
+    store.groups.unshift(g);
+    saveLocalChatStore(store);
+    return g;
+}
+
+function localJoinGroup(name, username) {
+    const store = loadLocalChatStore();
+    store.members = store.members || [];
+    if (!store.members.some(m => m.group_name === name && m.username === username)) {
+        store.members.push({ id: Date.now(), group_name: name, username, created_at: new Date().toISOString() });
+        saveLocalChatStore(store);
+    }
+}
+
+function localLeaveGroup(name, username) {
+    const store = loadLocalChatStore();
+    store.members = (store.members || []).filter(m => !(m.group_name === name && m.username === username));
+    saveLocalChatStore(store);
+}
+
+function localIsMember(name, username) {
+    const store = loadLocalChatStore();
+    return (store.members || []).some(m => m.group_name === name && m.username === username);
+}
+
+function populateDmUserSelect() {
+    const sel = document.getElementById('dmUserSelect');
+    if (!sel) return;
+    const opts = users
+        .filter(u => u.username !== currentUser?.username)
+        .map(u => `<option value="${u.username}">@${u.username} (${escapeHtml(u.name)})</option>`)
+        .join('');
+    sel.innerHTML = `<option value="">Select user…</option>` + opts;
+}
+
+async function populateGroupSelect() {
+    // Backward compatibility: keep select filled for older flows, but prefer the WhatsApp-like list.
+    const sel = document.getElementById('groupSelect');
+    if (!sel) return;
+
+    let groups = [];
+    if (isCloudEnabled()) {
+        try {
+            groups = await cloudListGroups();
+            setChatCloudWarn('');
+        } catch (e) {
+            groups = localListGroups();
+            setChatCloudWarn('Cloud groups unavailable (local fallback). ' + (chatCloudLastError ? `Error: ${chatCloudLastError}` : ''));
+        }
+    } else {
+        groups = localListGroups();
+    }
+
+    const options = groups.map(g => {
+        const owner = g.owner || '';
+        return `<option value="${g.name}">${g.name}${owner ? ` (owner: @${owner})` : ''}</option>`;
+    }).join('');
+
+    sel.innerHTML = `<option value="">Select group…</option>` + options;
+}
+
+// ------------------------------
+// GROUPS UI (WhatsApp-like list)
+// ------------------------------
+let groupUiFilter = 'joined'; // joined | all
+let groupUiSearch = '';
+let groupUiAllGroupsCache = [];
+let currentOpenGroupName = null; // the group currently highlighted in list (even if not joined)
+
+function setGroupFilter(mode) {
+    groupUiFilter = (mode === 'all') ? 'all' : 'joined';
+
+    const allBtn = document.getElementById('groupFilterAll');
+    const joinedBtn = document.getElementById('groupFilterJoined');
+    if (allBtn && joinedBtn) {
+        const active = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white';
+        const idle = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700';
+        allBtn.className = (groupUiFilter === 'all') ? active : idle;
+        joinedBtn.className = (groupUiFilter === 'joined') ? active : idle;
+    }
+
+    renderGroupList();
+}
+
+async function refreshGroupsUI() {
+    // Populate the hidden select too
+    await populateGroupSelect();
+
+    // Load groups from cloud/local
+    let groups = [];
+    if (isCloudEnabled()) {
+        try {
+            groups = await cloudListGroups();
+            setChatCloudWarn('');
+        } catch (e) {
+            groups = localListGroups();
+            setChatCloudWarn('Cloud groups unavailable (local fallback). ' + (chatCloudLastError ? `Error: ${chatCloudLastError}` : ''));
+        }
+    } else {
+        groups = localListGroups();
+    }
+
+    // Normalize to { name, owner }
+    groupUiAllGroupsCache = (groups || []).map(g => ({
+        name: g.name,
+        owner: g.owner || ''
+    }));
+
+    // Wire search box once
+    const searchEl = document.getElementById('groupSearch');
+    if (searchEl && !searchEl.dataset.bound) {
+        searchEl.dataset.bound = '1';
+        searchEl.addEventListener('input', () => {
+            groupUiSearch = (searchEl.value || '').trim().toLowerCase();
+            renderGroupList();
+        });
+    }
+
+    // Ensure filter buttons initialized
+    setGroupFilter(groupUiFilter);
+
+    // Default meta
+    updateGroupActiveHeader();
+
+    // Render list
+    await renderGroupList();
+}
+
+function isJoinedGroup(groupName) {
+    if (!currentUser) return false;
+
+    // In cloud mode with membership table, membership may not be mirrored locally.
+    // For a snappy UI, we use local membership store first. If not found, treat as not-joined.
+    // Joining via UI will always add local membership in fallback paths.
+    if (!isCloudEnabled()) {
+        return localIsMember(groupName, currentUser.username);
+    }
+
+    // Cloud mode: we keep a local membership cache for UX.
+    return localIsMember(groupName, currentUser.username);
+}
+
+function updateGroupActiveHeader() {
+    const titleEl = document.getElementById('groupActiveTitle');
+    const metaEl = document.getElementById('groupActiveMeta');
+    const joinBtn = document.getElementById('groupJoinBtn');
+    const leaveBtn = document.getElementById('groupLeaveBtn');
+
+    if (!titleEl || !metaEl || !joinBtn || !leaveBtn) return;
+
+    if (!currentOpenGroupName) {
+        titleEl.textContent = 'Select a group';
+        metaEl.textContent = 'Your group messages will appear below.';
+        joinBtn.classList.add('hidden');
+        leaveBtn.classList.add('hidden');
+        return;
+    }
+
+    titleEl.textContent = `Group: ${currentOpenGroupName}`;
+
+    const joined = isJoinedGroup(currentOpenGroupName);
+    metaEl.textContent = joined ? 'Joined • You can chat here.' : 'Not joined yet • Tap Join to participate.';
+
+    joinBtn.classList.toggle('hidden', joined);
+    leaveBtn.classList.toggle('hidden', !joined);
+}
+
+async function renderGroupList() {
+    const listEl = document.getElementById('groupList');
+    if (!listEl) return;
+
+    const q = (groupUiSearch || '').trim();
+
+    // Filter
+    let items = groupUiAllGroupsCache.slice();
+    if (q) {
+        items = items.filter(g => (g.name || '').toLowerCase().includes(q));
+    }
+
+    if (groupUiFilter === 'joined') {
+        items = items.filter(g => isJoinedGroup(g.name));
+    }
+
+    // Build last message preview from current loaded messages if on a group,
+    // otherwise we just show a generic preview.
+    const previewMap = new Map();
+    try {
+        // Use local chat store for previews (works in both local and cloud fallback)
+        const store = loadLocalChatStore();
+        const msgs = (store.messages || []).slice(-800);
+        for (const m of msgs) {
+            if (m.channel_type === 'group' && typeof m.channel_id === 'string' && m.channel_id.startsWith('group:')) {
+                const name = m.channel_id.slice('group:'.length);
+                previewMap.set(name, m);
+            }
+        }
+    } catch {}
+
+    if (items.length === 0) {
+        const emptyText = groupUiFilter === 'joined'
+            ? 'No joined groups yet. Switch to “All” and join one, or create a new group.'
+            : 'No groups found. Create one!';
+        listEl.innerHTML = `<div class="p-4 text-sm text-gray-500">${emptyText}</div>`;
+        return;
+    }
+
+    listEl.innerHTML = items.map(g => {
+        const joined = isJoinedGroup(g.name);
+        const active = (g.name === currentOpenGroupName) ? 'active' : '';
+        const avatarChar = (g.name || 'G').charAt(0).toUpperCase();
+        const last = previewMap.get(g.name);
+        const preview = last
+            ? `@${last.sender || last.username || 'unknown'}: ${(last.body || '').slice(0, 80)}`
+            : (joined ? 'Tap to open • Send a message' : 'Tap to view • Join to chat');
+
+        const pill = joined
+            ? `<span class="group-pill joined">JOINED</span>`
+            : `<span class="group-pill not-joined">NEW</span>`;
+
+        const joinBtn = joined
+            ? ''
+            : `<button class="group-join-btn" onclick="event.stopPropagation(); quickJoinGroup('${g.name.replace(/'/g, "\\'")}')">Join</button>`;
+
+        return `
+            <div class="group-row ${active}" onclick="openGroupFromList('${g.name.replace(/'/g, "\\'")}')">
+                <div class="group-avatar">${avatarChar}</div>
+                <div class="group-meta">
+                    <div class="group-name">
+                        <span class="truncate">${escapeHtml(g.name)}</span>
+                        ${pill}
+                    </div>
+                    <div class="group-preview">${escapeHtml(preview)}</div>
+                </div>
+                <div class="group-actions">${joinBtn}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function openGroupFromList(name) {
+    const groupName = (name || '').trim();
+    if (!groupName) return;
+
+    currentOpenGroupName = groupName;
+    updateGroupActiveHeader();
+
+    // If already joined, actually open chat channel
+    if (isJoinedGroup(groupName)) {
+        currentGroup = groupName;
+        currentChannel = { type: 'group', id: `group:${groupName}`, title: `Group: ${groupName}` };
+        updateChatHeader();
+        loadAndRenderMessages();
+    } else {
+        // Not joined: show a friendly system message in chat area.
+        chatMessages = [];
+        renderMessages([{ system: true, body: `You are viewing ${groupName}. Tap Join to participate.` }]);
+    }
+
+    // Highlight selection
+    renderGroupList();
+}
+
+async function quickJoinGroup(name) {
+    const groupName = (name || '').trim();
+    if (!groupName) return;
+
+    currentOpenGroupName = groupName;
+    updateGroupActiveHeader();
+
+    // Keep local membership for UX
+    localJoinGroup(groupName, currentUser.username);
+
+    if (isCloudEnabled()) {
+        try {
+            await cloudJoinGroup(groupName, currentUser.username);
+            setChatCloudWarn('');
+        } catch (e) {
+            setChatCloudWarn('Cloud join failed (local fallback). ' + (chatCloudLastError || ''));
+        }
+    }
+
+    // Open channel
+    currentGroup = groupName;
+    currentChannel = { type: 'group', id: `group:${groupName}`, title: `Group: ${groupName}` };
+    updateChatHeader();
+
+    await loadAndRenderMessages();
+    await refreshGroupsUI();
+}
+
+async function joinCurrentOpenGroup() {
+    if (!currentOpenGroupName) return;
+    await quickJoinGroup(currentOpenGroupName);
+}
+
+function setChatMode(mode) {
+    chatMode = mode;
+
+    if (mode === 'public') {
+        currentChannel = { type: 'public', id: 'public', title: 'Public Chat' };
+        currentDmWith = null;
+        currentGroup = null;
+    } else if (mode === 'dm') {
+        currentDmWith = null;
+        currentGroup = null;
+        currentChannel = { type: 'dm', id: 'dm:pending', title: 'DMs' };
+        populateDmUserSelect();
+    } else if (mode === 'group') {
+        currentGroup = null;
+        currentDmWith = null;
+        currentChannel = { type: 'group', id: 'group:pending', title: 'Groups' };
+        // WhatsApp-like list rendering
+        refreshGroupsUI().catch(() => {});
+    }
+
+    updateChatHeader();
+    loadAndRenderMessages();
+}
+
+function startDM() {
+    const sel = document.getElementById('dmUserSelect');
+    const other = sel?.value ? normalizeUsername(sel.value) : '';
+    if (!other) return;
+    currentDmWith = other;
+    const id = dmChannelId(currentUser.username, other);
+    currentChannel = { type: 'dm', id, title: `DM with @${other}` };
+    updateChatHeader();
+    loadAndRenderMessages();
+}
+
+function useSelectedGroup() {
+    const sel = document.getElementById('groupSelect');
+    const name = sel?.value ? sel.value.trim() : '';
+    if (!name) return;
+
+    currentOpenGroupName = name;
+    updateGroupActiveHeader();
+
+    currentGroup = name;
+    currentChannel = { type: 'group', id: `group:${name}`, title: `Group: ${name}` };
+    updateChatHeader();
+    loadAndRenderMessages();
+
+    // Refresh list highlight
+    renderGroupList();
+}
+
+async function joinSelectedGroup() {
+    const sel = document.getElementById('groupSelect');
+    const name = sel?.value ? sel.value.trim() : '';
+    if (!name) return;
+
+    // Keep list UI in sync
+    currentOpenGroupName = name;
+    updateGroupActiveHeader();
+
+    // Always keep a local membership cache for UX
+    localJoinGroup(name, currentUser.username);
+
+    if (isCloudEnabled()) {
+        try {
+            await cloudJoinGroup(name, currentUser.username);
+            setChatCloudWarn('');
+        } catch (e) {
+            setChatCloudWarn('Cloud join failed (local fallback). ' + (chatCloudLastError || ''));
+        }
+    }
+
+    // open it
+    currentGroup = name;
+    currentChannel = { type: 'group', id: `group:${name}`, title: `Group: ${name}` };
+    updateChatHeader();
+    await loadAndRenderMessages();
+
+    await refreshGroupsUI();
+}
+
+async function leaveCurrentGroup() {
+    if (!currentGroup) return;
+    const name = currentGroup;
+
+    // Always update local membership cache
+    localLeaveGroup(name, currentUser.username);
+
+    if (isCloudEnabled()) {
+        try {
+            await cloudLeaveGroup(name, currentUser.username);
+            setChatCloudWarn('');
+        } catch (e) {
+            setChatCloudWarn('Cloud leave failed (local fallback). ' + (chatCloudLastError || ''));
+        }
+    }
+
+    currentGroup = null;
+    currentChannel = { type: 'group', id: 'group:pending', title: 'Groups' };
+    updateChatHeader();
+
+    // Keep list UI focused on the same group but show "not joined"
+    currentOpenGroupName = currentOpenGroupName || name;
+    updateGroupActiveHeader();
+
+    await refreshGroupsUI();
+    loadAndRenderMessages();
+}
+
+async function createGroupFromUI() {
+    const input = document.getElementById('newGroupName');
+    const name = input?.value?.trim();
+    if (!name) return;
+
+    await createGroup(name);
+
+    if (input) input.value = '';
+}
+
+async function createGroup(name) {
+    const groupName = name.trim();
+    if (!/^[a-zA-Z0-9_-]{3,32}$/.test(groupName)) {
+        alert('Group name must be 3-32 chars: letters, numbers, _ or -');
+        return;
+    }
+
+    if (isCloudEnabled()) {
+        try {
+            await cloudCreateGroup(groupName, currentUser.username);
+            await cloudJoinGroup(groupName, currentUser.username);
+            setChatCloudWarn('');
+        } catch (e) {
+            // fallback
+            try {
+                localCreateGroup(groupName, currentUser.username);
+                localJoinGroup(groupName, currentUser.username);
+            } catch {}
+            setChatCloudWarn('Cloud create failed (local fallback). ' + (chatCloudLastError || ''));
+        }
+    } else {
+        localCreateGroup(groupName, currentUser.username);
+        localJoinGroup(groupName, currentUser.username);
+    }
+
+    await populateGroupSelect();
+    currentGroup = groupName;
+    currentChannel = { type: 'group', id: `group:${groupName}`, title: `Group: ${groupName}` };
+    updateChatHeader();
+    loadAndRenderMessages();
+}
+
+function useSelectedGroup() { /* placeholder overridden above */ }
+
+// Overwrite placeholder safely (in case of accidental duplication)
+useSelectedGroup = function() {
+    const sel = document.getElementById('groupSelect');
+    const name = sel?.value ? sel.value.trim() : '';
+    if (!name) return;
+    currentGroup = name;
+    currentChannel = { type: 'group', id: `group:${name}`, title: `Group: ${name}` };
+    updateChatHeader();
+    loadAndRenderMessages();
+};
+
+async function loadAndRenderMessages() {
+    if (!currentUser) return;
+
+    // channel mapping
+    let channelType = 'public';
+    let channelId = 'public';
+
+    if (currentChannel.type === 'public') {
+        channelType = 'public';
+        channelId = 'public';
+    } else if (currentChannel.type === 'dm' && currentDmWith) {
+        channelType = 'dm';
+        channelId = dmChannelId(currentUser.username, currentDmWith);
+    } else if (currentChannel.type === 'group' && currentGroup) {
+        channelType = 'group';
+        channelId = `group:${currentGroup}`;
+    } else {
+        chatMessages = [];
+        renderMessages();
+        updateOnlineCount();
+        return;
+    }
+
+    // Groups: membership is a demo feature.
+    // In proper cloud mode (with chat_group_members), we enforce it.
+    // In legacy cloud mode (only `messages` table), we DO NOT block, otherwise groups appear "broken".
+    if (channelType === 'group' && currentGroup && !isOwnerOrAdmin()) {
+        if (isCloudEnabled()) {
+            try {
+                const members = await cloudListGroupMembers(currentGroup);
+                const ok = Array.isArray(members) && members.some(m => m.username === currentUser.username);
+                if (!ok) {
+                    chatMessages = [];
+                    renderMessages([{ system: true, body: `You are not a member of ${currentGroup}. Click Join.` }]);
+                    updateOnlineCount();
+                    return;
+                }
+            } catch {
+                // If we can't check membership in cloud, don't block.
+            }
+        } else {
+            if (!localIsMember(currentGroup, currentUser.username)) {
+                chatMessages = [];
+                renderMessages([{ system: true, body: `You are not a member of ${currentGroup}. Click Join.` }]);
+                updateOnlineCount();
+                return;
+            }
+        }
+    }
+
+    // Prefer cloud if enabled
+    if (isCloudEnabled()) {
+        try {
+            const cloudMsgs = await cloudLoadChannelMessages(channelType, channelId);
+            chatMessages = cloudMsgs;
+            setChatCloudWarn('');
+        } catch (e) {
+            chatMessages = localLoadChannelMessages(channelType, channelId);
+            setChatCloudWarn('Cloud chat not available (local fallback). Run Cloud Sync SQL. ' + (chatCloudLastError ? `Error: ${chatCloudLastError}` : ''));
+        }
+    } else {
+        chatMessages = localLoadChannelMessages(channelType, channelId);
+        setChatCloudWarn('');
+    }
+
+    renderMessages();
+    updateOnlineCount();
+}
+
+function renderMessages(injected = null) {
+    const container = document.getElementById('chatMessages');
+    const msgs = Array.isArray(injected) ? injected : chatMessages;
+
+    if (!msgs || msgs.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-gray-400 text-sm py-8">
+                <span class="text-3xl block mb-2">💬</span>
+                No messages yet. Be the first to say hi!
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = msgs.map(msg => {
+        if (msg.system) {
+            return `
+                <div class="text-center">
+                    <span class="inline-block text-xs bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full">${escapeHtml(msg.body)}</span>
+                </div>
+            `;
+        }
+
+        const sender = msg.sender || msg.username || 'unknown';
+        const isMe = sender === currentUser?.username;
+        const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const isOwnerMsg = sender === 'gamerking';
+        const u = users.find(x => x.username === sender);
+        const isAdminMsg = u?.role === 'admin';
+
+        let badge = '';
+        if (isOwnerMsg) badge = '<span class="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full ml-1">👑</span>';
+        else if (isAdminMsg) badge = '<span class="text-xs bg-amber-500 text-white px-1.5 py-0.5 rounded-full ml-1">⭐</span>';
+
+        const idLine = chatShowIds && msg.id ? `<span class="text-[10px] ${isMe ? 'text-white/50' : 'text-gray-400'} ml-2">#${msg.id}</span>` : '';
+
+        const canDelete = isOwner() && isCloudEnabled() && msg.id;
+        const deleteBtn = canDelete ? `<button onclick="deleteChatMessage(${msg.id})" class="text-[10px] ${isMe ? 'text-white/70' : 'text-gray-500'} hover:underline ml-2">delete</button>` : '';
+
+        return `
+            <div class="flex ${isMe ? 'justify-end' : 'justify-start'}">
+                <div class="max-w-[75%] ${isMe ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white' : 'bg-white border border-gray-200 text-gray-800'} rounded-2xl px-4 py-2 shadow-sm">
+                    <div class="flex items-center gap-1 mb-1">
+                        <span class="font-semibold text-sm ${isMe ? 'text-white/90' : 'text-indigo-600'}">@${escapeHtml(sender)}</span>
+                        ${badge}
+                        ${idLine}
+                        ${deleteBtn}
+                        <span class="text-xs ${isMe ? 'text-white/60' : 'text-gray-400'} ml-auto">${time}</span>
+                    </div>
+                    <p class="text-sm break-words">${escapeHtml(msg.body || msg.message || '')}</p>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.scrollTop = container.scrollHeight;
+}
+
+function setChatTabStateOnOpen() {
+    // default to public
+    chatMode = 'public';
+    currentChannel = { type: 'public', id: 'public', title: 'Public Chat' };
+    currentDmWith = null;
+    currentGroup = null;
+    chatShowIds = false;
+
+    populateDmUserSelect();
+
+    // Prepare Groups UI (WhatsApp-like list). It will render when you switch to Groups.
+    refreshGroupsUI().catch(() => {});
+
+    updateChatHeader();
 }
 
 function openChat() {
     document.getElementById('chatModal').classList.remove('hidden');
     setChatCloudWarn('');
+    setChatTabStateOnOpen();
+
     loadAndRenderMessages();
-    
-    // Start polling for new messages
+
     if (chatPollingInterval) clearInterval(chatPollingInterval);
-    chatPollingInterval = setInterval(loadAndRenderMessages, 3000);
+    chatPollingInterval = setInterval(loadAndRenderMessages, 2500);
 }
 
 function closeChat() {
@@ -2306,124 +3424,281 @@ function closeChat() {
     }
 }
 
-async function loadAndRenderMessages() {
-    // Prefer cloud if enabled, but fall back to local if cloud chat isn't configured.
+function toggleChatIds() {
+    chatShowIds = !chatShowIds;
+    renderMessages();
+}
+
+async function deleteChatMessage(id) {
+    if (!isOwner()) return;
+
     if (isCloudEnabled()) {
-        const cloudMsgs = await cloudLoadMessages();
-        if (cloudMsgs === null) {
-            // Cloud chat failed (missing table / RLS / wrong SQL). Use local chat.
-            loadLocalMessages();
-            const detail = chatCloudLastError ? ` Error: ${chatCloudLastError}` : '';
-            setChatCloudWarn('Cloud chat not available (falling back to local). Run Cloud Sync SQL to create the messages table. ' + detail);
-        } else {
-            chatMessages = cloudMsgs;
+        try {
+            await cloudDeleteMessageById(id);
             setChatCloudWarn('');
+        } catch (e) {
+            setChatCloudWarn('Delete failed: ' + (chatCloudLastError || e?.message || e));
         }
     } else {
-        loadLocalMessages();
-        setChatCloudWarn('');
+        // local delete by filtering
+        const store = loadLocalChatStore();
+        store.messages = (store.messages || []).filter(m => m.id !== id);
+        saveLocalChatStore(store);
     }
 
-    renderMessages();
-    updateOnlineCount();
+    await loadAndRenderMessages();
 }
 
-function renderMessages() {
-    const container = document.getElementById('chatMessages');
-    
-    if (chatMessages.length === 0) {
-        container.innerHTML = `
-            <div class="text-center text-gray-400 text-sm py-8">
-                <span class="text-3xl block mb-2">💬</span>
-                No messages yet. Be the first to say hi!
-            </div>
-        `;
-        return;
+async function clearCurrentChat() {
+    if (!isOwner()) return;
+
+    // Determine current channel keys
+    let channelType = 'public';
+    let channelId = 'public';
+    if (currentChannel.type === 'dm' && currentDmWith) {
+        channelType = 'dm';
+        channelId = dmChannelId(currentUser.username, currentDmWith);
+    } else if (currentChannel.type === 'group' && currentGroup) {
+        channelType = 'group';
+        channelId = `group:${currentGroup}`;
     }
-    
-    container.innerHTML = chatMessages.map(msg => {
-        const isMe = msg.username === currentUser?.username;
-        const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const isOwner = msg.username === 'gamerking';
-        const user = users.find(u => u.username === msg.username);
-        const isAdmin = user?.role === 'admin';
-        
-        let badge = '';
-        if (isOwner) badge = '<span class="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full ml-1">👑</span>';
-        else if (isAdmin) badge = '<span class="text-xs bg-amber-500 text-white px-1.5 py-0.5 rounded-full ml-1">⭐</span>';
-        
-        return `
-            <div class="flex ${isMe ? 'justify-end' : 'justify-start'}">
-                <div class="max-w-[75%] ${isMe ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white' : 'bg-white border border-gray-200 text-gray-800'} rounded-2xl px-4 py-2 shadow-sm">
-                    <div class="flex items-center gap-1 mb-1">
-                        <span class="font-semibold text-sm ${isMe ? 'text-white/90' : 'text-indigo-600'}">@${msg.username}</span>
-                        ${badge}
-                        <span class="text-xs ${isMe ? 'text-white/60' : 'text-gray-400'} ml-auto">${time}</span>
-                    </div>
-                    <p class="text-sm break-words">${escapeHtml(msg.message)}</p>
-                </div>
-            </div>
-        `;
-    }).join('');
-    
-    // Scroll to bottom
-    container.scrollTop = container.scrollHeight;
+
+    const ok = confirm(`Clear all messages in: ${currentChannel.title}?`);
+    if (!ok) return;
+
+    if (isCloudEnabled()) {
+        try {
+            await cloudClearChannel(channelType, channelId);
+            setChatCloudWarn('');
+        } catch (e) {
+            setChatCloudWarn('Clear failed: ' + (chatCloudLastError || e?.message || e));
+        }
+    } else {
+        localClearChannel(channelType, channelId);
+    }
+
+    await loadAndRenderMessages();
 }
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+function setChatModeHelp() {
+    // no-op placeholder for future
 }
 
-function updateOnlineCount() {
-    const el = document.getElementById('chatOnlineCount');
-    if (!el) return;
+function renderSystemHelp() {
+    const lines = [
+        'Commands:',
+        '/help — show this help',
+        '/me <action> — emote action',
+        '/dm @username <msg> — send a DM (auto-opens channel)',
+        '/create-group <name> — create a group',
+        '/join <name> — join a group',
+        '/leave — leave current group',
+        '/group <name> <msg> — send to group (auto-opens)',
+        isOwner() ? '/clear — clear current channel (owner)' : null,
+        isOwner() ? '/del <id> — delete message by id (owner)' : null
+    ].filter(Boolean);
 
-    if (!isCloudEnabled()) {
-        el.textContent = `Local mode • ${chatMessages.length} messages`;
-        return;
+    renderMessages([{ system: true, body: lines.join(' | ') }]);
+}
+
+async function handleSlashCommand(text) {
+    const raw = text.trim();
+    const parts = raw.split(' ');
+    const cmd = parts[0].toLowerCase();
+
+    if (cmd === '/help') {
+        renderSystemHelp();
+        return true;
     }
 
-    if (chatCloudOk === false) {
-        el.textContent = `Cloud enabled • Chat offline (local fallback)`;
-        return;
+    if (cmd === '/me') {
+        const action = raw.slice(3).trim();
+        if (!action) return true;
+        await sendChatBody(`*${currentUser.username} ${action}*`, true);
+        return true;
     }
 
-    el.textContent = `${users.length} users • Cloud Sync ✓`;
+    if (cmd === '/dm') {
+        const targetRaw = parts[1] || '';
+        const msg = raw.split(' ').slice(2).join(' ').trim();
+        const target = normalizeUsername(targetRaw.replace('@', ''));
+        if (!target || !msg) {
+            renderMessages([{ system: true, body: 'Usage: /dm @username message' }]);
+            return true;
+        }
+        currentDmWith = target;
+        chatMode = 'dm';
+        currentChannel = { type: 'dm', id: dmChannelId(currentUser.username, target), title: `DM with @${target}` };
+        updateChatHeader();
+        await sendChatBody(msg);
+        return true;
+    }
+
+    if (cmd === '/create-group') {
+        const name = (parts[1] || '').trim();
+        if (!name) {
+            renderMessages([{ system: true, body: 'Usage: /create-group groupName' }]);
+            return true;
+        }
+        await createGroup(name);
+        return true;
+    }
+
+    if (cmd === '/join') {
+        const name = (parts[1] || '').trim();
+        if (!name) {
+            renderMessages([{ system: true, body: 'Usage: /join groupName' }]);
+            return true;
+        }
+        // join and open
+        if (isCloudEnabled()) {
+            try {
+                await cloudJoinGroup(name, currentUser.username);
+            } catch {
+                localJoinGroup(name, currentUser.username);
+            }
+        } else {
+            localJoinGroup(name, currentUser.username);
+        }
+        currentGroup = name;
+        chatMode = 'group';
+        currentChannel = { type: 'group', id: `group:${name}`, title: `Group: ${name}` };
+        updateChatHeader();
+        await loadAndRenderMessages();
+        return true;
+    }
+
+    if (cmd === '/group') {
+        const name = (parts[1] || '').trim();
+        const msg = raw.split(' ').slice(2).join(' ').trim();
+        if (!name || !msg) {
+            renderMessages([{ system: true, body: 'Usage: /group groupName message' }]);
+            return true;
+        }
+        currentGroup = name;
+        chatMode = 'group';
+        currentChannel = { type: 'group', id: `group:${name}`, title: `Group: ${name}` };
+        updateChatHeader();
+        await sendChatBody(msg);
+        return true;
+    }
+
+    if (cmd === '/leave') {
+        await leaveCurrentGroup();
+        return true;
+    }
+
+    if (cmd === '/clear' && isOwner()) {
+        await clearCurrentChat();
+        return true;
+    }
+
+    if (cmd === '/del' && isOwner()) {
+        const id = parseInt(parts[1], 10);
+        if (!id) {
+            renderMessages([{ system: true, body: 'Usage: /del 123' }]);
+            return true;
+        }
+        await deleteChatMessage(id);
+        return true;
+    }
+
+    return false;
+}
+
+async function sendChatBody(body, isSystemLike = false) {
+    // Determine current channel
+    let channelType = 'public';
+    let channelId = 'public';
+
+    if (currentChannel.type === 'public') {
+        channelType = 'public';
+        channelId = 'public';
+    } else if (currentChannel.type === 'dm' && currentDmWith) {
+        channelType = 'dm';
+        channelId = dmChannelId(currentUser.username, currentDmWith);
+    } else if (currentChannel.type === 'group' && currentGroup) {
+        channelType = 'group';
+        channelId = `group:${currentGroup}`;
+    }
+
+    if (channelType === 'group' && currentGroup && !isOwnerOrAdmin()) {
+        // Must be member
+        if (!isCloudEnabled()) {
+            if (!localIsMember(currentGroup, currentUser.username)) {
+                renderMessages([{ system: true, body: `You are not a member of ${currentGroup}. Click Join.` }]);
+                return;
+            }
+        }
+    }
+
+    const sender = currentUser.username;
+
+    if (isCloudEnabled()) {
+        try {
+            const saved = await cloudSendChannelMessage(channelType, channelId, sender, body);
+            if (!saved) throw new Error('Cloud send failed');
+            setChatCloudWarn('');
+        } catch (e) {
+            localSendChannelMessage(channelType, channelId, sender, body);
+            setChatCloudWarn('Could not send via cloud (local fallback). Run Cloud Sync SQL. ' + (chatCloudLastError ? `Error: ${chatCloudLastError}` : ''));
+        }
+    } else {
+        localSendChannelMessage(channelType, channelId, sender, body);
+    }
+
+    await loadAndRenderMessages();
 }
 
 async function sendMessage() {
     const input = document.getElementById('chatInput');
-    const message = input.value.trim();
+    const text = input.value.trim();
+    if (!text || !currentUser) return;
 
-    if (!message || !currentUser) return;
-
-    const newMsg = {
-        username: currentUser.username,
-        message: message,
-        created_at: new Date().toISOString()
-    };
-
-    if (isCloudEnabled()) {
-        const saved = await cloudSendMessage(currentUser.username, message);
-        if (!saved) {
-            // Cloud failed -> local fallback
-            chatMessages.push(newMsg);
-            saveLocalMessages();
-            const detail = chatCloudLastError ? ` Error: ${chatCloudLastError}` : '';
-            setChatCloudWarn('Could not send via cloud (local fallback). Run Cloud Sync SQL to create the messages table. ' + detail);
-        } else {
-            setChatCloudWarn('');
+    // commands
+    if (text.startsWith('/')) {
+        input.value = '';
+        const handled = await handleSlashCommand(text);
+        if (!handled) {
+            renderMessages([{ system: true, body: 'Unknown command. Type /help' }]);
         }
-    } else {
-        chatMessages.push(newMsg);
-        saveLocalMessages();
+        return;
     }
 
     input.value = '';
-    await loadAndRenderMessages();
+    await sendChatBody(text);
 }
+
+function openChat() { /* placeholder overwritten above */ }
+openChat = function() {
+    document.getElementById('chatModal').classList.remove('hidden');
+    setChatCloudWarn('');
+    setChatTabStateOnOpen();
+
+    loadAndRenderMessages();
+
+    if (chatPollingInterval) clearInterval(chatPollingInterval);
+    chatPollingInterval = setInterval(loadAndRenderMessages, 2500);
+};
+
+function closeChat() { /* placeholder overwritten above */ }
+closeChat = function() {
+    document.getElementById('chatModal').classList.add('hidden');
+    if (chatPollingInterval) {
+        clearInterval(chatPollingInterval);
+        chatPollingInterval = null;
+    }
+};
+
+// expose UI buttons
+window.setChatMode = setChatMode;
+window.startDM = startDM;
+window.useSelectedGroup = useSelectedGroup;
+window.joinSelectedGroup = joinSelectedGroup;
+window.leaveCurrentGroup = leaveCurrentGroup;
+window.createGroupFromUI = createGroupFromUI;
+window.toggleChatIds = toggleChatIds;
+window.clearCurrentChat = clearCurrentChat;
 
 // ==========================================
 // PUBLISH / DEPLOY HELPERS
@@ -2459,7 +3734,7 @@ async function copyDeployChecklist() {
         '6) DNS:',
         '   - www -> CNAME (value provided by host)',
         '   - root/apex -> A/ALIAS/ANAME (depends on host/provider)',
-        '7) Enable HTTPS (Let\'s Encrypt, usually automatic)',
+        "7) Enable HTTPS (Let's Encrypt, usually automatic)",
         '',
         'IMPORTANT:',
         '- This demo stores users in localStorage (per browser).',
@@ -2908,7 +4183,7 @@ async function callRealAI(promptRaw) {
                             '  "siteBg2": "#RRGGBB" (optional),',
                             '  "sitePrimary": "#RRGGBB" (optional),',
                             '  "siteSecondary": "#RRGGBB" (optional),',
-                            '  "siteFont": one of ["Inter, system-ui, sans-serif","\'Poppins\', sans-serif","\'Roboto\', sans-serif","\'Montserrat\', sans-serif","\'Playfair Display\', serif","\'Space Grotesk\', sans-serif","\'JetBrains Mono\', monospace","\'Comic Sans MS\', cursive"] (optional),',
+                            '  "siteFont": string (optional; choose a font from the Site Editor dropdown),',
                             '  "siteBgPattern": one of ["none","dots","grid","waves","stars","particles"] (optional),',
                             '  "siteParticles": boolean (optional),',
                             '  "siteGlow": boolean (optional),',

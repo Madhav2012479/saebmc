@@ -189,3 +189,104 @@ body {
 #aiApplyBtn:disabled {
     filter: grayscale(0.2);
 }
+
+/* Chat message bubble selection and scroll comfort */
+#chatMessages {
+    overscroll-behavior: contain;
+}
+
+#chatInput:focus {
+    outline: none;
+}
+
+/* WhatsApp-like Group list */
+#groupList {
+    overscroll-behavior: contain;
+}
+
+.group-row {
+    display: flex;
+    gap: 10px;
+    padding: 12px;
+    cursor: pointer;
+}
+
+.group-row:hover {
+    background: #f3f4f6;
+}
+
+.group-row.active {
+    background: rgba(99, 102, 241, 0.10);
+}
+
+.group-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 800;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    flex: 0 0 auto;
+}
+
+.group-meta {
+    flex: 1;
+    min-width: 0;
+}
+
+.group-name {
+    font-weight: 700;
+    font-size: 14px;
+    color: #111827;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.group-preview {
+    font-size: 12px;
+    color: #6b7280;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.group-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+}
+
+.group-pill {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-weight: 700;
+}
+
+.group-pill.joined {
+    background: rgba(16, 185, 129, 0.12);
+    color: #065f46;
+}
+
+.group-pill.not-joined {
+    background: rgba(245, 158, 11, 0.12);
+    color: #92400e;
+}
+
+.group-join-btn {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: #10b981;
+    color: white;
+}
+
+.group-join-btn:hover {
+    filter: brightness(0.95);
+}
