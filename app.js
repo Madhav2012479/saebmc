@@ -2047,23 +2047,9 @@ function getCloudSQL() {
         '  created_at timestamp with time zone default now()',
         ');',
         '',
-        '-- Enable RLS and then add an "allow all" policy for anon (demo only)',
-        'alter table public.users enable row level security;',
-        'alter table public.messages enable row level security;',
-        '',
-        'drop policy if exists "Allow all for anon" on public.users;',
-        'create policy "Allow all for anon" on public.users',
-        '  for all',
-        '  to anon',
-        '  using (true)',
-        '  with check (true);',
-        '',
-        'drop policy if exists "Allow all for anon" on public.messages;',
-        'create policy "Allow all for anon" on public.messages',
-        '  for all',
-        '  to anon',
-        '  using (true)',
-        '  with check (true);',
+        '-- DEMO: Disable RLS so anon key can read/write without policies',
+        'alter table public.users disable row level security;',
+        'alter table public.messages disable row level security;',
         '',
         '-- Grants',
         'grant all on public.users to anon;',
@@ -2254,14 +2240,33 @@ function saveLocalMessages() {
     }
 }
 
+let chatCloudOk = null; // null = unknown, true/false after first attempt
+let chatCloudLastError = '';
+
+function setChatCloudWarn(text) {
+    const el = document.getElementById('chatCloudWarn');
+    if (!el) return;
+    if (!text) {
+        el.classList.add('hidden');
+        el.textContent = '';
+        return;
+    }
+    el.textContent = text;
+    el.classList.remove('hidden');
+}
+
 async function cloudLoadMessages() {
     if (!isCloudEnabled()) return [];
     try {
         const rows = await supabaseFetch('messages?select=*&order=created_at.asc&limit=100');
+        chatCloudOk = true;
+        chatCloudLastError = '';
         return Array.isArray(rows) ? rows : [];
     } catch (e) {
+        chatCloudOk = false;
+        chatCloudLastError = e?.message || String(e);
         console.warn('Cloud messages fetch failed:', e);
-        return [];
+        return null; // null means cloud failed
     }
 }
 
@@ -2272,8 +2277,12 @@ async function cloudSendMessage(username, message) {
             method: 'POST',
             body: JSON.stringify({ username, message })
         });
+        chatCloudOk = true;
+        chatCloudLastError = '';
         return rows?.[0] || null;
     } catch (e) {
+        chatCloudOk = false;
+        chatCloudLastError = e?.message || String(e);
         console.warn('Cloud send message failed:', e);
         return null;
     }
@@ -2281,6 +2290,7 @@ async function cloudSendMessage(username, message) {
 
 function openChat() {
     document.getElementById('chatModal').classList.remove('hidden');
+    setChatCloudWarn('');
     loadAndRenderMessages();
     
     // Start polling for new messages
@@ -2297,17 +2307,23 @@ function closeChat() {
 }
 
 async function loadAndRenderMessages() {
+    // Prefer cloud if enabled, but fall back to local if cloud chat isn't configured.
     if (isCloudEnabled()) {
-        try {
-            const cloudMsgs = await cloudLoadMessages();
-            chatMessages = cloudMsgs;
-        } catch (e) {
+        const cloudMsgs = await cloudLoadMessages();
+        if (cloudMsgs === null) {
+            // Cloud chat failed (missing table / RLS / wrong SQL). Use local chat.
             loadLocalMessages();
+            const detail = chatCloudLastError ? ` Error: ${chatCloudLastError}` : '';
+            setChatCloudWarn('Cloud chat not available (falling back to local). Run Cloud Sync SQL to create the messages table. ' + detail);
+        } else {
+            chatMessages = cloudMsgs;
+            setChatCloudWarn('');
         }
     } else {
         loadLocalMessages();
+        setChatCloudWarn('');
     }
-    
+
     renderMessages();
     updateOnlineCount();
 }
@@ -2362,32 +2378,49 @@ function escapeHtml(text) {
 
 function updateOnlineCount() {
     const el = document.getElementById('chatOnlineCount');
-    if (el) {
-        el.textContent = isCloudEnabled() 
-            ? `${users.length} users • Cloud Sync ✓`
-            : `Local mode • ${chatMessages.length} messages`;
+    if (!el) return;
+
+    if (!isCloudEnabled()) {
+        el.textContent = `Local mode • ${chatMessages.length} messages`;
+        return;
     }
+
+    if (chatCloudOk === false) {
+        el.textContent = `Cloud enabled • Chat offline (local fallback)`;
+        return;
+    }
+
+    el.textContent = `${users.length} users • Cloud Sync ✓`;
 }
 
 async function sendMessage() {
     const input = document.getElementById('chatInput');
     const message = input.value.trim();
-    
+
     if (!message || !currentUser) return;
-    
+
     const newMsg = {
         username: currentUser.username,
         message: message,
         created_at: new Date().toISOString()
     };
-    
+
     if (isCloudEnabled()) {
-        await cloudSendMessage(currentUser.username, message);
+        const saved = await cloudSendMessage(currentUser.username, message);
+        if (!saved) {
+            // Cloud failed -> local fallback
+            chatMessages.push(newMsg);
+            saveLocalMessages();
+            const detail = chatCloudLastError ? ` Error: ${chatCloudLastError}` : '';
+            setChatCloudWarn('Could not send via cloud (local fallback). Run Cloud Sync SQL to create the messages table. ' + detail);
+        } else {
+            setChatCloudWarn('');
+        }
     } else {
         chatMessages.push(newMsg);
         saveLocalMessages();
     }
-    
+
     input.value = '';
     await loadAndRenderMessages();
 }
