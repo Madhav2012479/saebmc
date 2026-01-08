@@ -1,5 +1,6 @@
 // Service Worker for Login System Pro
-const CACHE_NAME = 'login-system-pro-v1';
+// Bump this version whenever you deploy UI changes, so clients get fresh HTML/JS.
+const CACHE_NAME = 'login-system-pro-v2';
 const OFFLINE_URL = './index.html';
 
 // Files to cache for offline use
@@ -17,7 +18,7 @@ const FILES_TO_CACHE = [
 
 // Install event - cache files
 self.addEventListener('install', (event) => {
-  console.log('[ServiceWorker] Install');
+  console.log('[ServiceWorker] Install', CACHE_NAME);
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -56,68 +57,56 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event
+// Strategy:
+// - HTML navigations: network-first (so updates ship reliably), fallback to cache/offline
+// - Static assets: cache-first
+// - Supabase: always network
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET requests
-  if (request.method !== 'GET') {
-    return;
-  }
+  if (request.method !== 'GET') return;
 
-  // Skip Supabase API calls (these should always go to network)
+  // Supabase calls must always hit network
   if (url.hostname.includes('supabase.co')) {
     event.respondWith(
-      fetch(request).catch(() => {
-        // Return empty response for failed API calls
-        return new Response(JSON.stringify([]), {
-          headers: { 'Content-Type': 'application/json' }
-        });
-      })
+      fetch(request).catch(() => new Response(JSON.stringify([]), { headers: { 'Content-Type': 'application/json' } }))
     );
     return;
   }
 
-  // For everything else, try cache first, then network
+  const isHtmlNav = request.mode === 'navigate' || (request.headers.get('accept') || '').includes('text/html');
+
+  // Network-first for HTML so new UI changes (buttons/modals) appear after deploy
+  if (isHtmlNav) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          return response;
+        })
+        .catch(() => caches.match(request).then(r => r || caches.match(OFFLINE_URL)))
+    );
+    return;
+  }
+
+  // Cache-first for static assets
   event.respondWith(
-    caches.match(request)
-      .then((cachedResponse) => {
-        if (cachedResponse) {
-          // Return cached version
-          console.log('[ServiceWorker] Serving from cache:', request.url);
-          return cachedResponse;
-        }
-
-        // Not in cache, fetch from network
-        return fetch(request)
-          .then((response) => {
-            // Check if valid response
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-
-            // Clone and cache the response
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(request, responseToCache);
-              });
-
-            return response;
-          })
-          .catch((error) => {
-            console.log('[ServiceWorker] Fetch failed, serving offline page:', error);
-            
-            // For navigation requests, return the cached index.html
-            if (request.mode === 'navigate') {
-              return caches.match(OFFLINE_URL);
-            }
-            
-            // For other requests, just fail
-            throw error;
-          });
-      })
+    caches.match(request).then((cached) => {
+      if (cached) return cached;
+      return fetch(request)
+        .then((response) => {
+          // Cache successful basic responses
+          if (response && response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => cached);
+    })
   );
 });
 
