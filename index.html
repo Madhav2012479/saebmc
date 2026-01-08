@@ -151,6 +151,10 @@
                             <span class="text-lg">💬</span>
                             Chat
                         </button>
+                        <button id="chatEditorBtn" onclick="openChatEditor()" class="hidden bg-gradient-to-r from-pink-500 to-rose-500 hover:opacity-90 px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-lg">
+                            <span class="text-lg">🎨</span>
+                            Chat Editor
+                        </button>
                         <button onclick="viewMyPage()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition flex items-center gap-2">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
@@ -1059,105 +1063,312 @@
 
     <!-- Chat Modal -->
     <div id="chatModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl card-shadow w-full max-w-2xl h-[650px] flex flex-col overflow-hidden">
-            <div class="bg-gradient-to-r from-indigo-500 to-purple-600 p-4 text-white flex items-center justify-between">
-                <div class="flex items-center gap-2">
+        <div class="bg-white rounded-2xl card-shadow w-full max-w-5xl h-[740px] flex flex-col overflow-hidden">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-indigo-500 to-purple-600 p-4 text-white flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2 min-w-0">
                     <span class="text-2xl">💬</span>
-                    <div>
-                        <h3 class="font-bold text-lg" id="chatTitle">Chat</h3>
-                        <p class="text-xs opacity-80" id="chatOnlineCount">Connecting...</p>
+                    <div class="min-w-0">
+                        <h3 class="font-bold text-lg truncate" id="chatTitle">Chat</h3>
+                        <p class="text-xs opacity-80 truncate" id="chatOnlineCount">Connecting...</p>
                     </div>
                 </div>
-                <button onclick="closeChat()" class="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition" aria-label="Close">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+                <div class="flex items-center gap-2">
+                    <div id="chatOwnerTools" class="hidden flex gap-2 flex-wrap">
+                        <button onclick="clearCurrentChat()" class="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg transition">Clear</button>
+                        <button onclick="toggleChatIds()" class="text-xs bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-lg transition">IDs</button>
+                    </div>
+
+                    <button onclick="closeChat()" class="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition" aria-label="Close">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Body: Sidebar + Messages -->
+            <div class="flex-1 min-h-0 flex">
+                <!-- Sidebar -->
+                <aside class="w-full max-w-[520px] border-r border-gray-200 bg-white flex flex-col min-h-0">
+                    <!-- Tabs -->
+                    <div class="p-3 border-b border-gray-200 bg-white">
+                        <div class="flex gap-2 flex-wrap">
+                            <button id="chatTabPublic" onclick="setChatMode('public')" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white">Public</button>
+                            <button id="chatTabDm" onclick="setChatMode('dm')" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gray-100 text-gray-700">DMs</button>
+                            <button id="chatTabGroup" onclick="setChatMode('group')" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gray-100 text-gray-700">Groups</button>
+                        </div>
+                    </div>
+
+                    <!-- Cloud warning -->
+                    <div id="chatCloudWarn" class="hidden px-3 py-2 text-xs bg-amber-50 border-b border-amber-200 text-amber-900"></div>
+
+                    <!-- Help -->
+                    <div class="px-3 py-2 border-b border-gray-200 bg-white">
+                        <div id="chatModeHelp" class="text-[11px] text-gray-500 leading-relaxed">
+                            Commands: <span class="font-mono">/help</span> <span class="font-mono">/me</span> <span class="font-mono">/dm @user msg</span> <span class="font-mono">/create-group name</span> <span class="font-mono">/join name</span> <span class="font-mono">/group name msg</span>
+                        </div>
+                    </div>
+
+                    <!-- Mode Controls -->
+                    <div class="p-3 space-y-3 overflow-y-auto min-h-0 flex-1 bg-gray-50">
+                        <!-- DM Studio (no dropdown) -->
+                        <div id="chatModeDmControls" class="hidden dmStudio">
+                            <div class="dmStudioHeader">
+                                <div>
+                                    <p class="font-extrabold text-gray-900">Direct Messages</p>
+                                    <p class="text-xs text-gray-500">Tap a user to start chatting privately.</p>
+                                </div>
+                            </div>
+                            <div class="dmStudioSearchWrap">
+                                <span class="dmStudioSearchIcon">⌕</span>
+                                <input id="dmSearch" type="text" class="dmStudioSearch" placeholder="Search users by name or @username…">
+                            </div>
+                            <div id="dmUserList" class="dmUserList"></div>
+
+                            <!-- Hidden legacy select kept for compatibility (not used by UI) -->
+                            <select id="dmUserSelect" class="hidden"></select>
+                        </div>
+
+                        <!-- Groups Studio (custom UI) -->
+                        <div id="chatModeGroupControls" class="hidden space-y-3">
+                            <!-- CREATE / QUICK ACTIONS BAR -->
+                            <div class="groupStudioTop">
+                                <div class="groupStudioTopLeft">
+                                    <div class="groupStudioTitle">
+                                        <div class="groupStudioGlyph">◆</div>
+                                        <div>
+                                            <p class="font-extrabold text-gray-900">Groups Studio</p>
+                                            <p class="text-xs text-gray-500">Create, discover, and manage group chats.</p>
+                                        </div>
+                                    </div>
+                                    <div class="groupStudioCreate">
+                                        <input id="newGroupName" type="text" class="groupStudioCreateInput" placeholder="New group name (3-32 chars, letters/numbers/_/-)">
+                                        <button onclick="createGroupFromUI()" class="groupStudioCreateBtn">Create</button>
+                                    </div>
+                                </div>
+
+                                <div class="groupStudioTopRight">
+                                    <button onclick="refreshGroupsUI()" class="groupStudioGhostBtn" title="Refresh groups">
+                                        <span class="text-lg">↻</span>
+                                        Refresh
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- DISCOVERY + FILTERS -->
+                            <div class="groupStudioToolbar">
+                                <div class="groupStudioSearchWrap">
+                                    <span class="groupStudioSearchIcon">⌕</span>
+                                    <input id="groupSearch" type="text" class="groupStudioSearch" placeholder="Search groups by name…">
+                                </div>
+                                <div class="groupStudioChips">
+                                    <button id="groupFilterJoined" onclick="setGroupFilter('joined')" class="groupChip">Joined</button>
+                                    <button id="groupFilterAll" onclick="setGroupFilter('all')" class="groupChip">Explore</button>
+                                </div>
+
+                                <!-- Keep hidden select for older handlers (JS keeps it updated) -->
+                                <select id="groupSelect" class="hidden"></select>
+                            </div>
+
+                            <!-- LIST -->
+                            <div class="groupStudioGridShell">
+                                <div id="groupList" class="groupStudioGrid"></div>
+                            </div>
+
+                            <!-- DOCK: ACTIVE GROUP + INVITE -->
+                            <div class="groupStudioDock">
+                                <div class="groupStudioNow">
+                                    <div class="groupStudioNowBadge">LIVE</div>
+                                    <div class="min-w-0">
+                                        <p class="groupStudioNowTitle" id="groupActiveTitle">No group selected</p>
+                                        <p class="groupStudioNowMeta" id="groupActiveMeta">Pick a group card to open it.</p>
+                                    </div>
+                                    <div class="groupStudioNowActions">
+                                        <button id="groupJoinBtn" onclick="joinCurrentOpenGroup()" class="hidden groupStudioPrimaryBtn">Join</button>
+                                        <button id="groupLeaveBtn" onclick="leaveCurrentGroup()" class="hidden groupStudioDangerBtn">Leave</button>
+                                    </div>
+                                </div>
+
+                                <div id="groupInviteControls" class="hidden groupStudioInvite">
+                                    <div class="flex items-center justify-between gap-3 flex-wrap">
+                                        <p class="font-bold text-gray-900">Add someone</p>
+                                        <p class="text-xs text-gray-500">Best with Cloud Sync membership table</p>
+                                    </div>
+                                    <div class="mt-2 flex gap-2 flex-wrap items-center">
+                                        <select id="groupInviteUserSelect" class="flex-1 min-w-56 px-3 py-2 border border-gray-300 rounded-lg text-sm"></select>
+                                        <button id="groupInviteBtn" onclick="inviteUserToCurrentGroup()" class="groupStudioPrimaryBtn">Add</button>
+                                    </div>
+                                    <div id="groupInviteNote" class="mt-2 text-[11px] text-gray-500"></div>
+                                </div>
+
+                                <div class="groupStudioHint">
+                                    Tip: Use <span class="font-mono">/create-group</span>, <span class="font-mono">/join</span>, <span class="font-mono">/group</span> in chat.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- Messages Pane -->
+                <main class="flex-1 min-w-0 flex flex-col min-h-0 bg-gray-50">
+                    <div id="chatMessages" class="flex-1 min-h-0 p-4 overflow-y-auto space-y-3">
+                        <div class="text-center text-gray-400 text-sm py-8">
+                            <span class="text-3xl block mb-2">💬</span>
+                            Loading messages...
+                        </div>
+                    </div>
+
+                    <div class="p-3 border-t border-gray-200 bg-white">
+                        <div class="flex gap-2">
+                            <input type="text" id="chatInput" class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500 transition" placeholder="Type a message or /help" onkeypress="if(event.key==='Enter')sendMessage()">
+                            <button onclick="sendMessage()" class="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition flex items-center gap-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                </svg>
+                                Send
+                            </button>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Editor Modal (Owner Only) -->
+    <div id="chatEditorModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+        <div class="bg-white rounded-2xl card-shadow p-6 w-full max-w-4xl my-8 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
+                <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">🎨 Chat Editor <span class="text-sm bg-red-500 text-white px-2 py-1 rounded-full">Owner Only</span></h2>
+                <button onclick="closeChatEditor()" class="text-gray-400 hover:text-gray-600 transition" aria-label="Close">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
                 </button>
             </div>
-
-            <div class="px-4 py-3 border-b border-gray-200 bg-white space-y-3">
-                <div class="flex items-center justify-between gap-3 flex-wrap">
-                    <div class="flex gap-2 flex-wrap">
-                        <button id="chatTabPublic" onclick="setChatMode('public')" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white">Public</button>
-                        <button id="chatTabDm" onclick="setChatMode('dm')" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gray-100 text-gray-700">DMs</button>
-                        <button id="chatTabGroup" onclick="setChatMode('group')" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gray-100 text-gray-700">Groups</button>
-                    </div>
-
-                    <div id="chatOwnerTools" class="hidden flex gap-2 flex-wrap">
-                        <button onclick="clearCurrentChat()" class="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg transition">Clear Channel</button>
-                        <button onclick="toggleChatIds()" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-2 rounded-lg transition">Toggle IDs</button>
-                    </div>
-                </div>
-
-                <div id="chatModeHelp" class="text-xs text-gray-500">
-                    Commands: <span class="font-mono">/help</span> <span class="font-mono">/me</span> <span class="font-mono">/dm @user msg</span> <span class="font-mono">/create-group name</span> <span class="font-mono">/join name</span> <span class="font-mono">/group name msg</span>
-                </div>
-
-                <div id="chatModeDmControls" class="hidden flex gap-2 flex-wrap items-center">
-                    <select id="dmUserSelect" class="flex-1 min-w-48 px-3 py-2 border border-gray-300 rounded-lg text-sm"></select>
-                    <button onclick="startDM()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">Start DM</button>
-                </div>
-
-                <div id="chatModeGroupControls" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-3">
-                    <!-- WhatsApp-like group list -->
-                    <div class="lg:col-span-1 bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col">
-                        <div class="p-3 border-b border-gray-200 bg-white space-y-2">
-                            <div class="flex items-center gap-2">
-                                <input id="groupSearch" type="text" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Search groups">
-                                <button onclick="refreshGroupsUI()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-2 rounded-lg text-sm font-semibold transition" title="Refresh">↻</button>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Editor Controls -->
+                <div class="space-y-4">
+                    <!-- Appearance -->
+                    <div class="bg-gray-50 rounded-xl p-4">
+                        <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">🎨 Appearance</h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-gray-700 text-sm font-medium mb-1">Chat Background</label>
+                                <input type="color" id="chatBgColor" value="#f9fafb" class="w-full h-10 rounded-lg cursor-pointer">
                             </div>
-
-                            <div class="flex gap-2">
-                                <button id="groupFilterAll" onclick="setGroupFilter('all')" class="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700">All</button>
-                                <button id="groupFilterJoined" onclick="setGroupFilter('joined')" class="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white">Joined</button>
+                            <div>
+                                <label class="block text-gray-700 text-sm font-medium mb-1">Header Color</label>
+                                <input type="color" id="chatHeaderColor" value="#6366f1" class="w-full h-10 rounded-lg cursor-pointer">
                             </div>
-
-                            <div class="flex gap-2">
-                                <input id="newGroupName" type="text" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="New group name">
-                                <button onclick="createGroupFromUI()" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">Create</button>
+                            <div>
+                                <label class="block text-gray-700 text-sm font-medium mb-1">My Bubbles</label>
+                                <input type="color" id="chatMyBubbleColor" value="#6366f1" class="w-full h-10 rounded-lg cursor-pointer">
                             </div>
-
-                            <p class="text-[11px] text-gray-500">Click a group to open. If you’re not joined yet, tap Join.</p>
+                            <div>
+                                <label class="block text-gray-700 text-sm font-medium mb-1">Others' Bubbles</label>
+                                <input type="color" id="chatOtherBubbleColor" value="#ffffff" class="w-full h-10 rounded-lg cursor-pointer">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 text-sm font-medium mb-1">My Text Color</label>
+                                <input type="color" id="chatMyTextColor" value="#ffffff" class="w-full h-10 rounded-lg cursor-pointer">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 text-sm font-medium mb-1">Others' Text Color</label>
+                                <input type="color" id="chatOtherTextColor" value="#1f2937" class="w-full h-10 rounded-lg cursor-pointer">
+                            </div>
                         </div>
-
-                        <!-- Keep hidden select for backward compatibility with older handlers -->
-                        <select id="groupSelect" class="hidden"></select>
-
-                        <div id="groupList" class="flex-1 overflow-y-auto bg-white"></div>
-                    </div>
-
-                    <!-- Active group quick actions -->
-                    <div class="lg:col-span-2 bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3 flex-wrap">
-                        <div>
-                            <p class="text-sm font-bold text-gray-800" id="groupActiveTitle">Select a group</p>
-                            <p class="text-xs text-gray-500" id="groupActiveMeta">Your group messages will appear below.</p>
+                        <div class="mt-3">
+                            <label class="block text-gray-700 text-sm font-medium mb-1">Bubble Roundness</label>
+                            <input type="range" id="chatBubbleRadius" min="0" max="24" value="16" class="w-full">
+                            <div class="flex justify-between text-xs text-gray-500">
+                                <span>Square</span>
+                                <span>Rounded</span>
+                            </div>
                         </div>
-                        <div class="flex gap-2">
-                            <button id="groupJoinBtn" onclick="joinCurrentOpenGroup()" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">Join</button>
-                            <button id="groupLeaveBtn" onclick="leaveCurrentGroup()" class="hidden bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg text-sm font-semibold transition">Leave</button>
+                        <div class="mt-3">
+                            <label class="block text-gray-700 text-sm font-medium mb-1">Font Size</label>
+                            <select id="chatFontSize" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                <option value="12">Small</option>
+                                <option value="14" selected>Normal</option>
+                                <option value="16">Large</option>
+                                <option value="18">Extra Large</option>
+                            </select>
                         </div>
                     </div>
+                    
+                    <!-- Features -->
+                    <div class="bg-gray-50 rounded-xl p-4">
+                        <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">⚙️ Features</h3>
+                        <div class="space-y-2">
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" id="chatEnableDMs" checked class="w-4 h-4 text-indigo-600">
+                                <span class="text-gray-700 text-sm">Enable Direct Messages</span>
+                            </label>
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" id="chatEnableGroups" checked class="w-4 h-4 text-indigo-600">
+                                <span class="text-gray-700 text-sm">Enable Groups</span>
+                            </label>
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" id="chatEnableCommands" checked class="w-4 h-4 text-indigo-600">
+                                <span class="text-gray-700 text-sm">Enable /Commands</span>
+                            </label>
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" id="chatShowTimestamps" checked class="w-4 h-4 text-indigo-600">
+                                <span class="text-gray-700 text-sm">Show Timestamps</span>
+                            </label>
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" id="chatShowBadges" checked class="w-4 h-4 text-indigo-600">
+                                <span class="text-gray-700 text-sm">Show Role Badges (👑⭐)</span>
+                            </label>
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" id="chatEnableEmojis" checked class="w-4 h-4 text-indigo-600">
+                                <span class="text-gray-700 text-sm">Enable Emoji Reactions</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Moderation -->
+                    <div class="bg-gray-50 rounded-xl p-4">
+                        <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">🛡️ Moderation</h3>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-gray-700 text-sm font-medium mb-1">Max Message Length</label>
+                                <input type="number" id="chatMaxLength" value="500" min="50" max="2000" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 text-sm font-medium mb-1">Slow Mode (seconds between messages)</label>
+                                <input type="number" id="chatSlowMode" value="0" min="0" max="60" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 text-sm font-medium mb-1">Banned Words (comma separated)</label>
+                                <textarea id="chatBannedWords" class="w-full px-3 py-2 border border-gray-300 rounded-lg" rows="2" placeholder="word1, word2, word3"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Welcome Message -->
+                    <div class="bg-gray-50 rounded-xl p-4">
+                        <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">👋 Welcome Message</h3>
+                        <textarea id="chatWelcomeMsg" class="w-full px-3 py-2 border border-gray-300 rounded-lg" rows="2" placeholder="Welcome to the chat! Be respectful and have fun."></textarea>
+                    </div>
+                    
+                    <div class="flex gap-3">
+                        <button onclick="resetChatSettings()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-semibold transition">
+                            🔄 Reset to Default
+                        </button>
+                        <button onclick="saveChatSettings()" class="flex-1 bg-gradient-to-r from-pink-500 to-rose-500 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">
+                            💾 Save Chat Settings
+                        </button>
+                    </div>
                 </div>
-            </div>
-
-            <div id="chatCloudWarn" class="hidden px-4 py-2 text-xs bg-amber-50 border-b border-amber-200 text-amber-900"></div>
-
-            <div id="chatMessages" class="flex-1 p-4 overflow-y-auto space-y-3 bg-gray-50">
-                <div class="text-center text-gray-400 text-sm py-8">
-                    <span class="text-3xl block mb-2">💬</span>
-                    Loading messages...
-                </div>
-            </div>
-
-            <div class="p-4 border-t border-gray-200 bg-white">
-                <div class="flex gap-2">
-                    <input type="text" id="chatInput" class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500 transition" placeholder="Type a message or /help" onkeypress="if(event.key==='Enter')sendMessage()">
-                    <button onclick="sendMessage()" class="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition flex items-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
-                        </svg>
-                        Send
-                    </button>
+                
+                <!-- Live Preview -->
+                <div class="bg-gray-100 rounded-xl p-4 sticky top-0">
+                    <h3 class="font-bold text-gray-800 mb-3">📱 Live Preview</h3>
+                    <div id="chatPreview" class="rounded-xl overflow-hidden min-h-[400px]"></div>
                 </div>
             </div>
         </div>

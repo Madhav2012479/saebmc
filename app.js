@@ -839,6 +839,10 @@ function renderUsersList() {
 
         if (user.role === 'owner') {
             roleButton = '<span class="bg-gradient-to-r from-red-500 to-rose-600 text-white px-3 py-2 rounded-lg text-sm cursor-not-allowed shadow-lg font-bold animate-pulse">👑 UNTOUCHABLE</span>';
+            // Owner can still manage their own account
+            if (isOwner && user.username !== 'gamerking') {
+                manageButton = `<button onclick="openManageUser('${user.username}')" class="bg-gray-900 hover:bg-black text-white px-3 py-2 rounded-lg text-sm transition font-medium">⚙️ Manage</button>`;
+            }
         } else if (isOwner) {
             roleButton = `<button onclick="toggleRole('${user.username}')" class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg text-sm transition font-medium">
                 ${user.role === 'admin' ? '⬇ Demote to User' : '⬆ Make Admin'}
@@ -1813,11 +1817,12 @@ document.addEventListener('keydown', function(e) {
         closeCloudSync();
         closeChat();
         closeManageUser();
+        closeChatEditor();
     }
 });
 
 document.addEventListener('DOMContentLoaded', function() {
-    ['editProfileModal', 'deleteModal', 'twoFactorModal', 'pageEditorModal', 'transferOwnerModal', 'siteEditorModal', 'aiAssistantModal', 'publishModal', 'cloudSyncModal', 'chatModal', 'manageUserModal'].forEach(id => {
+    ['editProfileModal', 'deleteModal', 'twoFactorModal', 'pageEditorModal', 'transferOwnerModal', 'siteEditorModal', 'aiAssistantModal', 'publishModal', 'cloudSyncModal', 'chatModal', 'manageUserModal', 'chatEditorModal'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('click', function(e) {
@@ -2781,9 +2786,27 @@ function localSendChannelMessage(channelType, channelId, sender, body) {
         created_at: new Date().toISOString()
     };
     store.messages.push(msg);
-    store.messages = store.messages.slice(-800);
+    // Keep only the last 500 messages to avoid localStorage limits
+    store.messages = store.messages.slice(-500);
     saveLocalChatStore(store);
     return msg;
+}
+
+// Trim old messages on load to prevent storage issues
+function trimLocalChatStorage() {
+    try {
+        const store = loadLocalChatStore();
+        if (store.messages && store.messages.length > 500) {
+            store.messages = store.messages.slice(-500);
+            saveLocalChatStore(store);
+        }
+    } catch (e) {
+        // If storage is full, clear old messages
+        console.warn('Storage issue, clearing old chat messages:', e);
+        try {
+            localStorage.removeItem('chatStoreV2');
+        } catch {}
+    }
 }
 
 function localClearChannel(channelType, channelId) {
@@ -2828,13 +2851,162 @@ function localIsMember(name, username) {
 }
 
 function populateDmUserSelect() {
+    // Keep legacy select in sync (hidden), but the UI uses the DM list.
     const sel = document.getElementById('dmUserSelect');
     if (!sel) return;
+
     const opts = users
         .filter(u => u.username !== currentUser?.username)
         .map(u => `<option value="${u.username}">@${u.username} (${escapeHtml(u.name)})</option>`)
         .join('');
+
     sel.innerHTML = `<option value="">Select user…</option>` + opts;
+}
+
+function ensureDmStudioBound() {
+    const search = document.getElementById('dmSearch');
+    if (search && !search.dataset.bound) {
+        search.dataset.bound = '1';
+        search.addEventListener('input', renderDmUserList);
+    }
+    renderDmUserList();
+}
+
+function renderDmUserList() {
+    const listEl = document.getElementById('dmUserList');
+    if (!listEl) return;
+
+    const q = (document.getElementById('dmSearch')?.value || '').trim().toLowerCase();
+
+    const items = users
+        .filter(u => u.username !== currentUser?.username)
+        .filter(u => {
+            if (!q) return true;
+            const a = (u.username || '').toLowerCase();
+            const b = (u.name || '').toLowerCase();
+            return a.includes(q) || b.includes(q);
+        })
+        .slice(0, 300);
+
+    if (items.length === 0) {
+        listEl.innerHTML = `<div class="dmEmpty">No users found.</div>`;
+        return;
+    }
+
+    // Local preview: last DM message
+    const previewMap = new Map();
+    try {
+        const store = loadLocalChatStore();
+        const msgs = (store.messages || []).slice(-800);
+        for (const m of msgs) {
+            if (m.channel_type === 'dm' && typeof m.channel_id === 'string') {
+                previewMap.set(m.channel_id, m);
+            }
+        }
+    } catch {}
+
+    listEl.innerHTML = items.map(u => {
+        const id = dmChannelId(currentUser.username, u.username);
+        const last = previewMap.get(id);
+        const preview = last
+            ? `@${last.sender || 'unknown'}: ${(last.body || '').slice(0, 90)}`
+            : 'Tap to start a private chat';
+
+        const isActive = (currentChannel?.type === 'dm' && currentDmWith === u.username);
+        const active = isActive ? 'active' : '';
+
+        return `
+            <button class="dmUserRow ${active}" onclick="openDMWith('${u.username}')" type="button">
+                <div class="dmAvatar">${escapeHtml((u.name || u.username).charAt(0).toUpperCase())}</div>
+                <div class="dmMeta">
+                    <div class="dmTopLine">
+                        <span class="dmName">${escapeHtml(u.name || u.username)}</span>
+                        <span class="dmHandle">@${escapeHtml(u.username)}</span>
+                    </div>
+                    <div class="dmPreview">${escapeHtml(preview)}</div>
+                </div>
+            </button>
+        `;
+    }).join('');
+}
+
+function openDMWith(username) {
+    const other = normalizeUsername(username);
+    if (!other || other === currentUser?.username) return;
+
+    currentDmWith = other;
+    chatMode = 'dm';
+    currentChannel = { type: 'dm', id: dmChannelId(currentUser.username, other), title: `DM with @${other}` };
+
+    updateChatHeader();
+    loadAndRenderMessages();
+
+    // refresh list highlight
+    renderDmUserList();
+}
+
+function populateGroupInviteSelect() {
+    const sel = document.getElementById('groupInviteUserSelect');
+    if (!sel) return;
+
+    const opts = users
+        .filter(u => u.username !== currentUser?.username)
+        .map(u => `<option value="${u.username}">@${u.username} (${escapeHtml(u.name)})</option>`)
+        .join('');
+
+    sel.innerHTML = `<option value="">Select user…</option>` + opts;
+}
+
+function updateInviteUI() {
+    const card = document.getElementById('groupInviteControls');
+    const note = document.getElementById('groupInviteNote');
+
+    if (!card) return;
+
+    const canShow = !!(chatMode === 'group' && currentOpenGroupName);
+    card.classList.toggle('hidden', !canShow);
+
+    if (note) {
+        if (!canShow) note.textContent = '';
+        else if (!isCloudEnabled()) note.textContent = 'Cloud Sync is off. In Local mode, “Add member” is not required—anyone on this device can join.';
+        else note.textContent = 'In this demo, groups are public. “Add member” just pre-joins them (membership table) for nicer UX.';
+    }
+}
+
+async function inviteUserToCurrentGroup() {
+    const groupName = currentOpenGroupName;
+    const sel = document.getElementById('groupInviteUserSelect');
+    const username = sel?.value ? sel.value.trim() : '';
+
+    if (!groupName) {
+        alert('Select a group first.');
+        return;
+    }
+
+    if (!username) {
+        alert('Select a user to add.');
+        return;
+    }
+
+    // Always keep a local membership cache so UI can show Joined
+    localJoinGroup(groupName, username);
+
+    if (!isCloudEnabled()) {
+        alert('Added locally (demo). Turn on Cloud Sync if you want shared membership across devices.');
+        await refreshGroupsUI();
+        return;
+    }
+
+    try {
+        await cloudJoinGroup(groupName, username);
+        setChatCloudWarn('');
+        alert(`Added @${username} to ${groupName}.`);
+    } catch (e) {
+        setChatCloudWarn('Invite failed (local fallback): ' + (chatCloudLastError || e?.message || e));
+        alert('Cloud invite failed, but added locally as a fallback.');
+    }
+
+    await refreshGroupsUI();
 }
 
 async function populateGroupSelect() {
@@ -2876,12 +3048,13 @@ function setGroupFilter(mode) {
 
     const allBtn = document.getElementById('groupFilterAll');
     const joinedBtn = document.getElementById('groupFilterJoined');
-    if (allBtn && joinedBtn) {
-        const active = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white';
-        const idle = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700';
-        allBtn.className = (groupUiFilter === 'all') ? active : idle;
-        joinedBtn.className = (groupUiFilter === 'joined') ? active : idle;
-    }
+
+    // Groups Studio chips (custom look)
+    const activeChip = 'groupChip groupChip--active';
+    const idleChip = 'groupChip';
+
+    if (allBtn) allBtn.className = (groupUiFilter === 'all') ? activeChip : idleChip;
+    if (joinedBtn) joinedBtn.className = (groupUiFilter === 'joined') ? activeChip : idleChip;
 
     renderGroupList();
 }
@@ -2889,6 +3062,9 @@ function setGroupFilter(mode) {
 async function refreshGroupsUI() {
     // Populate the hidden select too
     await populateGroupSelect();
+
+    // Keep invite select in sync (user list)
+    populateGroupInviteSelect();
 
     // Load groups from cloud/local
     let groups = [];
@@ -2925,6 +3101,7 @@ async function refreshGroupsUI() {
 
     // Default meta
     updateGroupActiveHeader();
+    updateInviteUI();
 
     // Render list
     await renderGroupList();
@@ -2953,19 +3130,22 @@ function updateGroupActiveHeader() {
     if (!titleEl || !metaEl || !joinBtn || !leaveBtn) return;
 
     if (!currentOpenGroupName) {
-        titleEl.textContent = 'Select a group';
-        metaEl.textContent = 'Your group messages will appear below.';
+        titleEl.textContent = 'No group selected';
+        metaEl.textContent = 'Pick a group card to open it.';
         joinBtn.classList.add('hidden');
         leaveBtn.classList.add('hidden');
         return;
     }
 
-    titleEl.textContent = `Group: ${currentOpenGroupName}`;
+    titleEl.textContent = currentOpenGroupName;
 
     const joined = isJoinedGroup(currentOpenGroupName);
-    metaEl.textContent = joined ? 'Joined • You can chat here.' : 'Not joined yet • Tap Join to participate.';
+    metaEl.textContent = joined
+        ? 'Joined • You can chat in this room.'
+        : 'Not joined • You can still open it (auto-join on open).';
 
-    joinBtn.classList.toggle('hidden', joined);
+    // In this demo we auto-join on open, so keep join hidden.
+    joinBtn.classList.add('hidden');
     leaveBtn.classList.toggle('hidden', !joined);
 }
 
@@ -2985,11 +3165,9 @@ async function renderGroupList() {
         items = items.filter(g => isJoinedGroup(g.name));
     }
 
-    // Build last message preview from current loaded messages if on a group,
-    // otherwise we just show a generic preview.
+    // Build last message preview map
     const previewMap = new Map();
     try {
-        // Use local chat store for previews (works in both local and cloud fallback)
         const store = loadLocalChatStore();
         const msgs = (store.messages || []).slice(-800);
         for (const m of msgs) {
@@ -3001,41 +3179,48 @@ async function renderGroupList() {
     } catch {}
 
     if (items.length === 0) {
-        const emptyText = groupUiFilter === 'joined'
-            ? 'No joined groups yet. Switch to “All” and join one, or create a new group.'
-            : 'No groups found. Create one!';
-        listEl.innerHTML = `<div class="p-4 text-sm text-gray-500">${emptyText}</div>`;
+        // Let CSS empty state render; keep it truly empty
+        listEl.innerHTML = '';
         return;
     }
 
     listEl.innerHTML = items.map(g => {
         const joined = isJoinedGroup(g.name);
         const active = (g.name === currentOpenGroupName) ? 'active' : '';
-        const avatarChar = (g.name || 'G').charAt(0).toUpperCase();
+        const safeName = (g.name || '').replace(/'/g, "\\'");
+
         const last = previewMap.get(g.name);
         const preview = last
-            ? `@${last.sender || last.username || 'unknown'}: ${(last.body || '').slice(0, 80)}`
-            : (joined ? 'Tap to open • Send a message' : 'Tap to view • Join to chat');
+            ? `@${last.sender || last.username || 'unknown'}: ${(last.body || '').slice(0, 120)}`
+            : (joined ? 'Open to chat • No recent messages' : 'Open to preview • Join to chat');
 
-        const pill = joined
-            ? `<span class="group-pill joined">JOINED</span>`
-            : `<span class="group-pill not-joined">NEW</span>`;
+        const badge = joined
+            ? `<span class="groupCardBadge joined">Joined</span>`
+            : `<span class="groupCardBadge new">New</span>`;
 
         const joinBtn = joined
             ? ''
-            : `<button class="group-join-btn" onclick="event.stopPropagation(); quickJoinGroup('${g.name.replace(/'/g, "\\'")}')">Join</button>`;
+            : `<button class="groupCardJoin" onclick="event.stopPropagation(); quickJoinGroup('${safeName}')">Join</button>`;
+
+        const footPill = joined
+            ? `<span class="groupCardPill">Ready to chat</span>`
+            : `<span class="groupCardPill">Tap join to post</span>`;
 
         return `
-            <div class="group-row ${active}" onclick="openGroupFromList('${g.name.replace(/'/g, "\\'")}')">
-                <div class="group-avatar">${avatarChar}</div>
-                <div class="group-meta">
-                    <div class="group-name">
-                        <span class="truncate">${escapeHtml(g.name)}</span>
-                        ${pill}
+            <div class="groupCard ${active}" onclick="openGroupFromList('${safeName}')">
+                <div class="groupCardTop">
+                    <div class="min-w-0">
+                        <div class="groupCardName">${escapeHtml(g.name)}</div>
                     </div>
-                    <div class="group-preview">${escapeHtml(preview)}</div>
+                    ${badge}
                 </div>
-                <div class="group-actions">${joinBtn}</div>
+
+                <div class="groupCardPreview">${escapeHtml(preview)}</div>
+
+                <div class="groupCardFooter">
+                    ${footPill}
+                    ${joinBtn}
+                </div>
             </div>
         `;
     }).join('');
@@ -3046,19 +3231,25 @@ function openGroupFromList(name) {
     if (!groupName) return;
 
     currentOpenGroupName = groupName;
-    updateGroupActiveHeader();
-
-    // If already joined, actually open chat channel
-    if (isJoinedGroup(groupName)) {
-        currentGroup = groupName;
-        currentChannel = { type: 'group', id: `group:${groupName}`, title: `Group: ${groupName}` };
-        updateChatHeader();
-        loadAndRenderMessages();
-    } else {
-        // Not joined: show a friendly system message in chat area.
-        chatMessages = [];
-        renderMessages([{ system: true, body: `You are viewing ${groupName}. Tap Join to participate.` }]);
+    
+    // Auto-join for convenience (demo mode) - just open the group directly
+    // This makes it easier to chat without extra steps
+    if (!isJoinedGroup(groupName)) {
+        // Auto-join locally
+        localJoinGroup(groupName, currentUser.username);
+        if (isCloudEnabled()) {
+            cloudJoinGroup(groupName, currentUser.username).catch(() => {});
+        }
     }
+    
+    // Set the current group and channel
+    currentGroup = groupName;
+    currentChannel = { type: 'group', id: `group:${groupName}`, title: `Group: ${groupName}` };
+    
+    updateGroupActiveHeader();
+    updateInviteUI();
+    updateChatHeader();
+    loadAndRenderMessages();
 
     // Highlight selection
     renderGroupList();
@@ -3070,6 +3261,7 @@ async function quickJoinGroup(name) {
 
     currentOpenGroupName = groupName;
     updateGroupActiveHeader();
+    updateInviteUI();
 
     // Keep local membership for UX
     localJoinGroup(groupName, currentUser.username);
@@ -3104,32 +3296,34 @@ function setChatMode(mode) {
         currentChannel = { type: 'public', id: 'public', title: 'Public Chat' };
         currentDmWith = null;
         currentGroup = null;
+        currentOpenGroupName = null;
     } else if (mode === 'dm') {
         currentDmWith = null;
         currentGroup = null;
+        currentOpenGroupName = null;
         currentChannel = { type: 'dm', id: 'dm:pending', title: 'DMs' };
         populateDmUserSelect();
+        ensureDmStudioBound();
     } else if (mode === 'group') {
         currentGroup = null;
         currentDmWith = null;
+        // don't wipe currentOpenGroupName so the UI can keep selection when switching around
         currentChannel = { type: 'group', id: 'group:pending', title: 'Groups' };
         // WhatsApp-like list rendering
         refreshGroupsUI().catch(() => {});
     }
 
     updateChatHeader();
+    updateInviteUI();
     loadAndRenderMessages();
 }
 
 function startDM() {
+    // Kept for backward compatibility (old UI). New UI uses openDMWith().
     const sel = document.getElementById('dmUserSelect');
     const other = sel?.value ? normalizeUsername(sel.value) : '';
     if (!other) return;
-    currentDmWith = other;
-    const id = dmChannelId(currentUser.username, other);
-    currentChannel = { type: 'dm', id, title: `DM with @${other}` };
-    updateChatHeader();
-    loadAndRenderMessages();
+    openDMWith(other);
 }
 
 function useSelectedGroup() {
@@ -3202,6 +3396,7 @@ async function leaveCurrentGroup() {
     // Keep list UI focused on the same group but show "not joined"
     currentOpenGroupName = currentOpenGroupName || name;
     updateGroupActiveHeader();
+    updateInviteUI();
 
     await refreshGroupsUI();
     loadAndRenderMessages();
@@ -3286,28 +3481,15 @@ async function loadAndRenderMessages() {
     }
 
     // Groups: membership is a demo feature.
-    // In proper cloud mode (with chat_group_members), we enforce it.
-    // In legacy cloud mode (only `messages` table), we DO NOT block, otherwise groups appear "broken".
+    // We use local membership cache for quick UX. Cloud membership is bonus.
+    // Don't block if membership check fails - just let them chat (demo mode).
     if (channelType === 'group' && currentGroup && !isOwnerOrAdmin()) {
-        if (isCloudEnabled()) {
-            try {
-                const members = await cloudListGroupMembers(currentGroup);
-                const ok = Array.isArray(members) && members.some(m => m.username === currentUser.username);
-                if (!ok) {
-                    chatMessages = [];
-                    renderMessages([{ system: true, body: `You are not a member of ${currentGroup}. Click Join.` }]);
-                    updateOnlineCount();
-                    return;
-                }
-            } catch {
-                // If we can't check membership in cloud, don't block.
-            }
-        } else {
-            if (!localIsMember(currentGroup, currentUser.username)) {
-                chatMessages = [];
-                renderMessages([{ system: true, body: `You are not a member of ${currentGroup}. Click Join.` }]);
-                updateOnlineCount();
-                return;
+        // Only enforce local membership - don't block on cloud failures
+        if (!localIsMember(currentGroup, currentUser.username)) {
+            // Auto-join for convenience in demo mode
+            localJoinGroup(currentGroup, currentUser.username);
+            if (isCloudEnabled()) {
+                cloudJoinGroup(currentGroup, currentUser.username).catch(() => {});
             }
         }
     }
@@ -3397,9 +3579,10 @@ function setChatTabStateOnOpen() {
     currentGroup = null;
     chatShowIds = false;
 
+    // Prepare DM list + Groups UI (only renders when tabs are opened)
     populateDmUserSelect();
 
-    // Prepare Groups UI (WhatsApp-like list). It will render when you switch to Groups.
+    // Prepare Groups UI (Groups Studio). It will render when you switch to Groups.
     refreshGroupsUI().catch(() => {});
 
     updateChatHeader();
@@ -3623,11 +3806,11 @@ async function sendChatBody(body, isSystemLike = false) {
     }
 
     if (channelType === 'group' && currentGroup && !isOwnerOrAdmin()) {
-        // Must be member
-        if (!isCloudEnabled()) {
-            if (!localIsMember(currentGroup, currentUser.username)) {
-                renderMessages([{ system: true, body: `You are not a member of ${currentGroup}. Click Join.` }]);
-                return;
+        // Auto-join if not a member (demo convenience)
+        if (!localIsMember(currentGroup, currentUser.username)) {
+            localJoinGroup(currentGroup, currentUser.username);
+            if (isCloudEnabled()) {
+                cloudJoinGroup(currentGroup, currentUser.username).catch(() => {});
             }
         }
     }
@@ -3673,6 +3856,10 @@ function openChat() { /* placeholder overwritten above */ }
 openChat = function() {
     document.getElementById('chatModal').classList.remove('hidden');
     setChatCloudWarn('');
+    
+    // Trim storage to prevent issues
+    trimLocalChatStorage();
+    
     setChatTabStateOnOpen();
 
     loadAndRenderMessages();
@@ -3693,12 +3880,276 @@ closeChat = function() {
 // expose UI buttons
 window.setChatMode = setChatMode;
 window.startDM = startDM;
+window.openDMWith = openDMWith;
 window.useSelectedGroup = useSelectedGroup;
 window.joinSelectedGroup = joinSelectedGroup;
 window.leaveCurrentGroup = leaveCurrentGroup;
 window.createGroupFromUI = createGroupFromUI;
 window.toggleChatIds = toggleChatIds;
 window.clearCurrentChat = clearCurrentChat;
+
+// ==========================================
+// CHAT EDITOR (OWNER ONLY)
+// ==========================================
+
+let chatSettings = {
+    bgColor: '#f9fafb',
+    headerColor: '#6366f1',
+    myBubbleColor: '#6366f1',
+    otherBubbleColor: '#ffffff',
+    myTextColor: '#ffffff',
+    otherTextColor: '#1f2937',
+    bubbleRadius: 16,
+    fontSize: 14,
+    enableDMs: true,
+    enableGroups: true,
+    enableCommands: true,
+    showTimestamps: true,
+    showBadges: true,
+    enableEmojis: true,
+    maxLength: 500,
+    slowMode: 0,
+    bannedWords: '',
+    welcomeMsg: 'Welcome to the chat! Be respectful and have fun.'
+};
+
+function loadChatSettings() {
+    try {
+        const stored = localStorage.getItem('chatSettings');
+        if (stored) {
+            chatSettings = { ...chatSettings, ...JSON.parse(stored) };
+        }
+    } catch (e) {
+        console.error('Error loading chat settings:', e);
+    }
+}
+
+function saveChatSettingsToStorage() {
+    try {
+        localStorage.setItem('chatSettings', JSON.stringify(chatSettings));
+    } catch (e) {
+        console.error('Error saving chat settings:', e);
+    }
+}
+
+function openChatEditor() {
+    if (!currentUser || currentUser.role !== 'owner') {
+        alert('Only the Owner can edit chat settings!');
+        return;
+    }
+    
+    loadChatSettings();
+    
+    // Populate form fields
+    document.getElementById('chatBgColor').value = chatSettings.bgColor;
+    document.getElementById('chatHeaderColor').value = chatSettings.headerColor;
+    document.getElementById('chatMyBubbleColor').value = chatSettings.myBubbleColor;
+    document.getElementById('chatOtherBubbleColor').value = chatSettings.otherBubbleColor;
+    document.getElementById('chatMyTextColor').value = chatSettings.myTextColor;
+    document.getElementById('chatOtherTextColor').value = chatSettings.otherTextColor;
+    document.getElementById('chatBubbleRadius').value = chatSettings.bubbleRadius;
+    document.getElementById('chatFontSize').value = chatSettings.fontSize;
+    document.getElementById('chatEnableDMs').checked = chatSettings.enableDMs;
+    document.getElementById('chatEnableGroups').checked = chatSettings.enableGroups;
+    document.getElementById('chatEnableCommands').checked = chatSettings.enableCommands;
+    document.getElementById('chatShowTimestamps').checked = chatSettings.showTimestamps;
+    document.getElementById('chatShowBadges').checked = chatSettings.showBadges;
+    document.getElementById('chatEnableEmojis').checked = chatSettings.enableEmojis;
+    document.getElementById('chatMaxLength').value = chatSettings.maxLength;
+    document.getElementById('chatSlowMode').value = chatSettings.slowMode;
+    document.getElementById('chatBannedWords').value = chatSettings.bannedWords;
+    document.getElementById('chatWelcomeMsg').value = chatSettings.welcomeMsg;
+    
+    document.getElementById('chatEditorModal').classList.remove('hidden');
+    updateChatPreview();
+    
+    // Add live preview listeners
+    const inputs = ['chatBgColor', 'chatHeaderColor', 'chatMyBubbleColor', 'chatOtherBubbleColor', 
+                   'chatMyTextColor', 'chatOtherTextColor', 'chatBubbleRadius', 'chatFontSize'];
+    inputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el.dataset.chatBound) {
+            el.dataset.chatBound = '1';
+            el.addEventListener('input', updateChatPreview);
+            el.addEventListener('change', updateChatPreview);
+        }
+    });
+}
+
+function closeChatEditor() {
+    document.getElementById('chatEditorModal').classList.add('hidden');
+}
+
+function updateChatPreview() {
+    const preview = document.getElementById('chatPreview');
+    
+    const bgColor = document.getElementById('chatBgColor').value;
+    const headerColor = document.getElementById('chatHeaderColor').value;
+    const myBubbleColor = document.getElementById('chatMyBubbleColor').value;
+    const otherBubbleColor = document.getElementById('chatOtherBubbleColor').value;
+    const myTextColor = document.getElementById('chatMyTextColor').value;
+    const otherTextColor = document.getElementById('chatOtherTextColor').value;
+    const bubbleRadius = document.getElementById('chatBubbleRadius').value;
+    const fontSize = document.getElementById('chatFontSize').value;
+    
+    preview.innerHTML = `
+        <div class="flex flex-col h-[400px] rounded-xl overflow-hidden" style="font-size: ${fontSize}px;">
+            <!-- Header -->
+            <div class="p-3 text-white flex items-center gap-2" style="background: linear-gradient(135deg, ${headerColor}, ${adjustColor(headerColor, -20)});">
+                <span class="text-xl">💬</span>
+                <div>
+                    <p class="font-bold">Chat Preview</p>
+                    <p class="text-xs opacity-80">3 users online</p>
+                </div>
+            </div>
+            
+            <!-- Messages -->
+            <div class="flex-1 p-3 space-y-2 overflow-y-auto" style="background-color: ${bgColor};">
+                <!-- Other's message -->
+                <div class="flex justify-start">
+                    <div class="max-w-[75%] px-3 py-2 shadow-sm" style="background-color: ${otherBubbleColor}; color: ${otherTextColor}; border-radius: ${bubbleRadius}px;">
+                        <div class="flex items-center gap-1 mb-1">
+                            <span class="font-semibold text-xs" style="color: ${headerColor};">@cooluser</span>
+                            <span class="text-xs bg-amber-500 text-white px-1 rounded">⭐</span>
+                            <span class="text-xs opacity-50 ml-auto">2:30 PM</span>
+                        </div>
+                        <p>Hey! Welcome to the chat 👋</p>
+                    </div>
+                </div>
+                
+                <!-- My message -->
+                <div class="flex justify-end">
+                    <div class="max-w-[75%] px-3 py-2 shadow-sm" style="background-color: ${myBubbleColor}; color: ${myTextColor}; border-radius: ${bubbleRadius}px;">
+                        <div class="flex items-center gap-1 mb-1">
+                            <span class="font-semibold text-xs opacity-90">@${currentUser?.username || 'you'}</span>
+                            <span class="text-xs bg-red-500 text-white px-1 rounded">👑</span>
+                            <span class="text-xs opacity-60 ml-auto">2:31 PM</span>
+                        </div>
+                        <p>Thanks! This chat looks awesome! 🔥</p>
+                    </div>
+                </div>
+                
+                <!-- Another message -->
+                <div class="flex justify-start">
+                    <div class="max-w-[75%] px-3 py-2 shadow-sm" style="background-color: ${otherBubbleColor}; color: ${otherTextColor}; border-radius: ${bubbleRadius}px;">
+                        <div class="flex items-center gap-1 mb-1">
+                            <span class="font-semibold text-xs" style="color: ${headerColor};">@newbie</span>
+                            <span class="text-xs opacity-50 ml-auto">2:32 PM</span>
+                        </div>
+                        <p>Just joined! 🎉</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Input -->
+            <div class="p-2 border-t bg-white">
+                <div class="flex gap-2">
+                    <input type="text" class="flex-1 px-3 py-2 border rounded-lg text-sm" placeholder="Type a message..." disabled>
+                    <button class="text-white px-4 py-2 rounded-lg text-sm font-semibold" style="background-color: ${headerColor};">Send</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function adjustColor(color, amount) {
+    const hex = color.replace('#', '');
+    const num = parseInt(hex, 16);
+    const r = Math.min(255, Math.max(0, (num >> 16) + amount));
+    const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amount));
+    const b = Math.min(255, Math.max(0, (num & 0x0000FF) + amount));
+    return '#' + (0x1000000 + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+
+function saveChatSettings() {
+    chatSettings = {
+        bgColor: document.getElementById('chatBgColor').value,
+        headerColor: document.getElementById('chatHeaderColor').value,
+        myBubbleColor: document.getElementById('chatMyBubbleColor').value,
+        otherBubbleColor: document.getElementById('chatOtherBubbleColor').value,
+        myTextColor: document.getElementById('chatMyTextColor').value,
+        otherTextColor: document.getElementById('chatOtherTextColor').value,
+        bubbleRadius: parseInt(document.getElementById('chatBubbleRadius').value),
+        fontSize: parseInt(document.getElementById('chatFontSize').value),
+        enableDMs: document.getElementById('chatEnableDMs').checked,
+        enableGroups: document.getElementById('chatEnableGroups').checked,
+        enableCommands: document.getElementById('chatEnableCommands').checked,
+        showTimestamps: document.getElementById('chatShowTimestamps').checked,
+        showBadges: document.getElementById('chatShowBadges').checked,
+        enableEmojis: document.getElementById('chatEnableEmojis').checked,
+        maxLength: parseInt(document.getElementById('chatMaxLength').value),
+        slowMode: parseInt(document.getElementById('chatSlowMode').value),
+        bannedWords: document.getElementById('chatBannedWords').value,
+        welcomeMsg: document.getElementById('chatWelcomeMsg').value
+    };
+    
+    saveChatSettingsToStorage();
+    applyChatSettings();
+    
+    alert('🎨 Chat settings saved successfully!');
+    closeChatEditor();
+}
+
+function resetChatSettings() {
+    if (!confirm('Reset all chat settings to default?')) return;
+    
+    chatSettings = {
+        bgColor: '#f9fafb',
+        headerColor: '#6366f1',
+        myBubbleColor: '#6366f1',
+        otherBubbleColor: '#ffffff',
+        myTextColor: '#ffffff',
+        otherTextColor: '#1f2937',
+        bubbleRadius: 16,
+        fontSize: 14,
+        enableDMs: true,
+        enableGroups: true,
+        enableCommands: true,
+        showTimestamps: true,
+        showBadges: true,
+        enableEmojis: true,
+        maxLength: 500,
+        slowMode: 0,
+        bannedWords: '',
+        welcomeMsg: 'Welcome to the chat! Be respectful and have fun.'
+    };
+    
+    saveChatSettingsToStorage();
+    openChatEditor(); // Refresh the form
+    alert('🔄 Chat settings reset to default!');
+}
+
+function applyChatSettings() {
+    loadChatSettings();
+    
+    // Apply to chat modal if it exists
+    const chatMessages = document.getElementById('chatMessages');
+    if (chatMessages) {
+        chatMessages.style.backgroundColor = chatSettings.bgColor;
+        chatMessages.style.fontSize = chatSettings.fontSize + 'px';
+    }
+    
+    // Hide/show DM and Groups tabs based on settings
+    const dmTab = document.getElementById('chatTabDm');
+    const groupTab = document.getElementById('chatTabGroup');
+    if (dmTab) dmTab.style.display = chatSettings.enableDMs ? '' : 'none';
+    if (groupTab) groupTab.style.display = chatSettings.enableGroups ? '' : 'none';
+}
+
+// Update updateDashboard to show/hide chat editor button
+const originalUpdateDashboard = updateDashboard;
+updateDashboard = function() {
+    originalUpdateDashboard();
+    
+    // Show Chat Editor button for owner
+    const chatEditorBtn = document.getElementById('chatEditorBtn');
+    if (chatEditorBtn) {
+        chatEditorBtn.classList.toggle('hidden', currentUser?.role !== 'owner');
+    }
+    
+    // Apply chat settings
+    applyChatSettings();
+};
 
 // ==========================================
 // PUBLISH / DEPLOY HELPERS
