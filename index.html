@@ -3,1550 +3,1169 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#667eea">
-    <meta name="description" content="A complete login system with chat, user management, and customizable pages">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="LoginPro">
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%23667eea' width='100' height='100' rx='20'/><text x='50' y='68' font-size='50' text-anchor='middle' fill='white'>🔐</text></svg>">
-    <title>Login System Pro</title>
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Montserrat:wght@400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Poppins:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Tailwind CSS -->
+    <title>SaebMC - Ultimate Studio</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <!-- OTPAuth for 2FA -->
-    <script src="https://cdn.jsdelivr.net/npm/otpauth@9.2.2/dist/otpauth.umd.min.js"></script>
-    <!-- QR Code Generator -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-    <!-- Custom Styles -->
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="manifest" href="manifest.json">
+    <script src="https://cdn.jsdelivr.net/npm/otpauth@9/dist/otpauth.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;600;700&family=Roboto:wght@400;700&family=Montserrat:wght@400;700&family=Playfair+Display:wght@700&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <script>
+        // Apply theme immediately to head to prevent flash
+        (function() {
+            const theme = localStorage.getItem('studio_theme');
+            if (theme === 'dark' || !theme) document.documentElement.classList.add('dark');
+        })();
+        
+        // Handle direct deep links before app.js fully boots
+        if (window.location.hash.startsWith('#/u/')) {
+            document.addEventListener('DOMContentLoaded', () => {
+                const username = window.location.hash.split('/u/')[1];
+                if (username && typeof window.showPublicPage === 'function') {
+                    window.showPublicPage(username);
+                }
+            });
+        }
+
+        // Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(e => console.warn("SW Error", e));
+            });
+        }
+
+        // Safe Initialization Check
+        window.onerror = function(msg, url, line) {
+            const status = document.getElementById('initStatus');
+            if (status) {
+                const message = typeof msg === 'string' ? msg : (msg.message || "Unknown error");
+                status.innerText = "⚠️ ERROR: " + message.substring(0, 30);
+                status.className = "mt-4 text-[10px] font-bold uppercase tracking-[0.2em] text-red-500";
+            }
+            console.error("Studio Error:", msg, url, line);
+            return false;
+        };
+        // Ensure no multiple siteLogos
+        document.addEventListener('DOMContentLoaded', () => {
+            const logos = document.querySelectorAll('#siteLogo');
+            logos.forEach((logo, i) => { if(i > 0) logo.id = 'siteLogo_' + i; });
+        });
+    </script>
+    <style>
+        :root {
+            --primary: #4ade80; /* Emerald Green */
+            --primary-rgb: 74, 222, 128;
+            --primary-hover: #22c55e;
+            --secondary: #22d3ee; /* Diamond Blue */
+            --bg-base: #0a0a0c;
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
+            --card-bg: rgba(20, 20, 25, 0.6);
+            --border-color: rgba(255, 255, 255, 0.12);
+            --input-bg: rgba(0, 0, 0, 0.4);
+            --glass-blur: 50px;
+            --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        .dark {
+            --bg-base: #050505;
+            --card-bg: rgba(10, 10, 15, 0.7);
+            --primary: #4ade80;
+        }
+
+        body {
+            background: var(--bg-base);
+            color: var(--text-main);
+            font-family: 'Space Grotesk', 'Inter', sans-serif;
+            margin: 0;
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-attachment: fixed;
+        }
+
+        /* iOS 25 x Minecraft Blobs */
+        .blobs-container {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            filter: blur(100px);
+            opacity: 0.8;
+            overflow: hidden;
+        }
+
+        .blob {
+            position: absolute;
+            width: 45vw;
+            height: 45vw;
+            border-radius: 20%; /* Blocky Minecraft feel */
+            animation: float 25s infinite alternate ease-in-out;
+            opacity: 0.6;
+        }
+
+        .blob-1 {
+            background: linear-gradient(135deg, #059669, #10b981); /* Emerald */
+            top: -10%; left: -10%;
+            border-radius: 35%;
+        }
+
+        .blob-2 {
+            background: linear-gradient(135deg, #0891b2, #06b6d4); /* Diamond */
+            bottom: -10%; right: -10%;
+            animation-duration: 30s;
+            border-radius: 30%;
+        }
+
+        .blob-3 {
+            background: linear-gradient(135deg, #f59e0b, #fbbf24); /* Minecraft Gold */
+            top: 20%; right: 10%;
+            animation-duration: 20s;
+            mix-blend-mode: color-dodge;
+            border-radius: 40%;
+        }
+
+        .blob-4 {
+            background: linear-gradient(135deg, #dc2626, #f87171); /* Redstone */
+            bottom: 20%; left: 5%;
+            animation-duration: 35s;
+            border-radius: 25%;
+        }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) rotate(0deg) scale(1); }
+            50% { transform: translate(10%, 5%) rotate(5deg) scale(1.1); }
+            100% { transform: translate(-5%, 10%) rotate(-5deg) scale(0.95); }
+        }
+
+        .glass {
+            background: var(--card-bg) !important;
+            backdrop-filter: blur(var(--glass-blur)) saturate(250%) !important;
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(250%) !important;
+            border: 1px solid var(--border-color) !important;
+            box-shadow: 
+                0 25px 60px rgba(0,0,0,0.5),
+                inset 0 1px 1px rgba(255,255,255,0.15),
+                0 0 0 1px rgba(255,255,255,0.05) inset !important;
+            border-radius: 28px !important;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* Minecraft Pixel Texture Overlay */
+        .glass::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg width='4' height='4' viewBox='0 0 4 4' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h1v1H0V0zm2 2h1v1H2V2z' fill='%23ffffff' fill-opacity='0.04' fill-rule='evenodd'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Glass Top Shimmer */
+        .glass::after {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 100%;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 40%, transparent 100%);
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .glass:hover {
+            transform: translateY(-4px) scale(1.01);
+            border-color: rgba(255,255,255,0.2) !important;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.6) !important;
+        }
+
+        input, select, textarea {
+            background: var(--input-bg) !important;
+            border: 1px solid var(--border-color) !important;
+            color: white !important;
+            border-radius: 12px !important;
+            backdrop-filter: blur(10px);
+        }
+
+        input:focus {
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.2) !important;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--secondary)) !important;
+            color: #000 !important;
+            font-weight: 700 !important;
+            border: none !important;
+            box-shadow: 0 4px 15px rgba(74, 222, 128, 0.3) !important;
+            transition: all 0.3s ease !important;
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.03);
+            filter: brightness(1.1);
+            box-shadow: 0 8px 25px rgba(74, 222, 128, 0.5) !important;
+        }
+
+        .message-mine {
+            background: linear-gradient(135deg, #10b981, #059669) !important;
+            color: #000 !important;
+            font-weight: 500;
+        }
+
+        .message-others {
+            background: rgba(255,255,255,0.1) !important;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.05) !important;
+        }
+
+        /* Custom Scrollbar Obsidian Style */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(74, 222, 128, 0.3);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+        .loading-logo {
+            animation: pulse-minecraft 1.5s infinite;
+        }
+
+        @keyframes pulse-minecraft {
+            0% { transform: scale(1); filter: drop-shadow(0 0 0px var(--primary)); }
+            50% { transform: scale(1.1); filter: drop-shadow(0 0 20px var(--primary)); }
+            100% { transform: scale(1); filter: drop-shadow(0 0 0px var(--primary)); }
+        }
+
+        #initStatus {
+            color: var(--primary);
+            text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+        }
+
+        /* ============================================
+           HYPER-GLASS MODALS - iOS 25 Style
+           ============================================ */
+        #chatModal, 
+        #ownerPanelModal, 
+        #pageEditorModal, 
+        #manageUserModal, 
+        #notificationsModal, 
+        #groupMembersModal, 
+        #editProfileModal, 
+        #tfaModal, 
+        #cloudSyncModal {
+            background: rgba(255, 255, 255, 0.12) !important;
+            backdrop-filter: blur(80px) saturate(200%) brightness(1.05) !important;
+            -webkit-backdrop-filter: blur(80px) saturate(200%) brightness(1.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+            box-shadow: 
+                0 25px 80px rgba(0, 0, 0, 0.2),
+                0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+                0 1px 0 rgba(255, 255, 255, 0.4) inset !important;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+        }
+
+        .dark #chatModal, 
+        .dark #ownerPanelModal, 
+        .dark #pageEditorModal, 
+        .dark #manageUserModal, 
+        .dark #notificationsModal, 
+        .dark #groupMembersModal, 
+        .dark #editProfileModal, 
+        .dark #tfaModal, 
+        .dark #cloudSyncModal {
+            background: rgba(15, 15, 30, 0.7) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            box-shadow: 
+                0 25px 80px rgba(0, 0, 0, 0.6),
+                0 0 100px rgba(139, 92, 246, 0.1),
+                0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+                0 1px 0 rgba(255, 255, 255, 0.1) inset !important;
+        }
+
+        /* Glass Shine + Grain for All Modals */
+        #chatModal::before, 
+        #ownerPanelModal::before, 
+        #pageEditorModal::before,
+        #cloudSyncModal::before,
+        #editProfileModal::before,
+        #tfaModal::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: 
+                linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.1) 100%),
+                url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            opacity: 0.04;
+            pointer-events: none;
+            z-index: 0;
+            border-radius: inherit;
+        }
+
+        .dark #chatModal::before, 
+        .dark #ownerPanelModal::before, 
+        .dark #pageEditorModal::before,
+        .dark #cloudSyncModal::before {
+            background: 
+                linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, transparent 40%, transparent 60%, rgba(99, 102, 241, 0.1) 100%),
+                url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            opacity: 0.06;
+        }
+
+
+        
+        /* Glassy Inputs */
+        input, select, textarea {
+            background: var(--input-bg) !important;
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color) !important;
+            transition: all 0.3s ease;
+            border-radius: 12px !important;
+            padding: 12px 16px !important;
+        }
+
+        input:focus {
+            background: rgba(255, 255, 255, 0.2) !important;
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+        }
+
+        /* Ultimate Dark Mode Coverage */
+        .dark .bg-white, 
+        .dark .bg-gray-50, 
+        .dark .bg-gray-100,
+        .dark .bg-gray-200 { background-color: var(--card-bg) !important; }
+        
+        .dark .text-gray-900, 
+        .dark .text-gray-800, 
+        .dark .text-gray-700,
+        .dark .text-black { color: var(--text-main) !important; }
+        
+        .dark .text-gray-600, 
+        .dark .text-gray-500, 
+        .dark .text-gray-400 { color: var(--text-muted) !important; }
+        
+        .dark .border-gray-200, 
+        .dark .border-gray-100,
+        .dark .border-gray-300 { border-color: var(--border-color) !important; }
+
+        .dark .hover\:bg-gray-100:hover,
+        .dark .hover\:bg-gray-50:hover { background-color: var(--btn-gray-hover) !important; }
+
+        .dark .bg-purple-600 { background-color: var(--primary) !important; color: #020617 !important; }
+        .dark .hover\:bg-purple-700:hover { background-color: var(--primary-hover) !important; }
+        
+        .dark input, 
+        .dark select, 
+        .dark textarea {
+            background-color: var(--input-bg) !important;
+            border-color: var(--border-color) !important;
+            color: var(--text-main) !important;
+        }
+        
+        .dark .btn-primary { background-color: var(--primary) !important; color: #000 !important; }
+        .dark .btn-primary:hover { background-color: var(--primary-hover) !important; }
+        
+        .dark .bg-purple-100 { background-color: rgba(167, 139, 250, 0.1) !important; color: var(--primary) !important; }
+        .dark .bg-blue-100 { background-color: rgba(59, 130, 246, 0.1) !important; color: #60a5fa !important; }
+        .dark .bg-rose-500 { background-color: #f43f5e !important; }
+
+        /* iOS 25 Refractive Textures */
+        .glass::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(125deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%, rgba(255,255,255,0.2) 100%);
+            opacity: 0.3;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .dark .glass::after {
+            background: linear-gradient(125deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%, rgba(255,255,255,0.05) 100%);
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 768px) {
+            .glass {
+                border-radius: 20px !important;
+                --glass-blur: 25px;
+            }
+            /* Chat Mobile Overhaul */
+            #chatModal {
+                height: 100vh !important;
+                max-height: 100vh !important;
+                width: 100vw !important;
+                max-width: 100vw !important;
+                border-radius: 0 !important;
+                flex-direction: column !important;
+                top: 0 !important;
+                left: 0 !important;
+                transform: none !important;
+                z-index: 9999;
+            }
+            #chatSidebar {
+                position: absolute !important;
+                top: 60px !important;
+                left: -100% !important;
+                width: 85% !important;
+                height: calc(100% - 60px) !important;
+                z-index: 100 !important;
+                transition: left 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+                border-right: 1px solid var(--border-color) !important;
+                background: rgba(10, 10, 15, 0.9) !important;
+                backdrop-filter: blur(40px) saturate(200%) !important;
+            }
+            #chatSidebar.mobile-sidebar-active {
+                left: 0 !important;
+                box-shadow: 40px 0 80px rgba(0,0,0,0.8);
+            }
+            #chatSidebar.mobile-sidebar-active::after {
+                content: "";
+                position: absolute;
+                top: 0; right: 0; bottom: 0; width: 1px;
+                background: linear-gradient(to bottom, transparent, var(--primary), transparent);
+            }
+            #chatSidebarContent {
+                display: block !important;
+                height: 100% !important;
+                max-height: none !important;
+            }
+            /* Owner Panel Mobile Overhaul */
+            #ownerPanelModal {
+                height: 100vh !important;
+                max-height: 100vh !important;
+                width: 100vw !important;
+                max-width: 100vw !important;
+                border-radius: 0 !important;
+                flex-direction: column !important;
+            }
+            #ownerPanelModal > div.flex-1 {
+                flex-direction: column !important;
+            }
+            #ownerPanelModal .w-64 {
+                width: calc(100% - 20px) !important;
+                height: auto !important;
+                display: flex !important;
+                overflow-x: auto !important;
+                padding: 8px !important;
+                margin: 10px !important;
+                border: 1px solid var(--border-color);
+                border-radius: 16px !important;
+                background: rgba(0,0,0,0.2) !important;
+            }
+            #ownerPanelModal .w-64 button {
+                white-space: nowrap !important;
+                flex: 1 !important;
+                text-align: center !important;
+                margin-bottom: 0 !important;
+                margin-right: 4px !important;
+                padding: 10px !important;
+                font-size: 11px !important;
+            }
+            .chat-main-view {
+                flex: 1;
+            }
+            nav {
+                padding: 10px !important;
+            }
+            #siteTitle {
+                display: none;
+            }
+            #dashboard {
+                padding-bottom: 80px;
+            }
+            #onlineStatusBadge {
+                display: none !important;
+            }
+        }
+
+        .btn-primary { 
+            background: linear-gradient(135deg, var(--primary), #6366f1);
+            color: white; 
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            border: none;
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+        }
+        .btn-primary:hover { 
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 8px 25px rgba(139, 92, 246, 0.4);
+        }
+        .btn-primary:active {
+            transform: translateY(0) scale(0.98);
+        }
+
+        /* iOS Message Bubbles */
+        .message-bubble {
+            backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 12px 16px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        }
+        
+        .message-mine {
+            background: linear-gradient(180deg, #007aff, #0056b3) !important;
+            color: white !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3) !important;
+        }
+
+        .message-others {
+            background: rgba(255, 255, 255, 0.5) !important;
+            backdrop-filter: blur(15px) saturate(200%);
+            color: #000 !important;
+            border: 1px solid rgba(255, 255, 255, 0.5) !important;
+        }
+        .dark .message-others {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(15px) saturate(200%);
+            color: #fff !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 10px;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+            transition: all 0.2s;
+        }
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .tab-active {
+            background-color: var(--primary);
+            color: white;
+        }
+    </style>
 </head>
-<body class="gradient-bg min-h-screen flex items-center justify-center p-4">
+<body class="custom-scrollbar">
+    <div id="toast-container"></div>
+
+    <!-- iOS 25 Blobs -->
+    <div class="blobs-container">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+        <div class="blob blob-4"></div>
+    </div>
+
+    <!-- Sick Loader -->
+    <div id="loadingScreen" class="hidden fixed inset-0 z-[100] bg-white/5 dark:bg-black/10 backdrop-blur-3xl flex flex-col items-center justify-center transition-all duration-300">
+        <div class="relative">
+            <div class="w-20 h-20 border-4 border-purple-500/20 border-t-purple-600 rounded-full animate-spin"></div>
+            <div class="absolute inset-0 flex items-center justify-center">
+                <div id="siteLogo" class="w-10 h-10 bg-purple-600 text-white rounded-xl flex items-center justify-center text-xl font-bold shadow-lg">S</div>
+            </div>
+        </div>
+        <div class="mt-6 text-center">
+            <p class="text-sm font-bold uppercase tracking-[0.2em] text-purple-600 animate-pulse">SaebMC Studio</p>
+            <p id="loadingStatusText" class="text-xs text-gray-500 mt-2">Ready</p>
+        </div>
+    </div>
     
-    <!-- Login Form -->
-    <div id="loginForm" class="bg-white rounded-2xl card-shadow p-8 w-full max-w-md">
-        <div class="text-center mb-8">
-            <div class="w-20 h-20 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full mx-auto flex items-center justify-center mb-4">
-                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                </svg>
-            </div>
-            <h1 class="text-3xl font-bold text-gray-800">Welcome Back</h1>
-            <p class="text-gray-500 mt-2">Sign in to your account</p>
+    <!-- Notification Permission Banner -->
+    <div id="notifBanner" class="hidden fixed top-0 left-0 w-full bg-purple-600 text-white p-3 z-[100] flex items-center justify-between shadow-lg">
+        <div class="flex items-center space-x-3">
+            <i class="fas fa-bell"></i>
+            <span class="text-sm font-medium">Allow desktop notifications to never miss a message?</span>
         </div>
-        
-        <div id="loginError" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4"></div>
-        
-        <div class="space-y-5">
-            <div>
-                <label class="block text-gray-700 font-medium mb-2">Username</label>
-                <input type="text" id="loginUsername" class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus focus:outline-none focus:border-indigo-500 transition" placeholder="Enter your username">
-            </div>
-            <div>
-                <label class="block text-gray-700 font-medium mb-2">Password</label>
-                <input type="password" id="loginPassword" class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus focus:outline-none focus:border-indigo-500 transition" placeholder="Enter your password">
-            </div>
-            <div class="flex items-center justify-between">
-                <label class="flex items-center">
-                    <input type="checkbox" id="rememberMe" class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
-                    <span class="ml-2 text-gray-600 text-sm">Remember me</span>
-                </label>
-                <a href="#" class="text-indigo-600 text-sm hover:underline">Forgot password?</a>
-            </div>
-            <button onclick="login()" class="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition transform hover:scale-[1.02]">
-                Sign In
-            </button>
-        </div>
-        
-        <p class="text-center text-gray-600 mt-6">
-            Don't have an account? 
-            <a href="#" onclick="showRegister()" class="text-indigo-600 font-semibold hover:underline">Sign up</a>
-        </p>
-    </div>
-
-    <!-- 2FA Verification Form -->
-    <div id="twoFactorForm" class="hidden bg-white rounded-2xl card-shadow p-8 w-full max-w-md">
-        <div class="text-center mb-8">
-            <div class="w-20 h-20 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full mx-auto flex items-center justify-center mb-4 pulse-glow">
-                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                </svg>
-            </div>
-            <h1 class="text-3xl font-bold text-gray-800">2FA Verification</h1>
-            <p class="text-gray-500 mt-2">Enter the code from your authenticator app</p>
-        </div>
-        
-        <div id="twoFactorError" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4"></div>
-        
-        <div class="space-y-5">
-            <div>
-                <label class="block text-gray-700 font-medium mb-2">6-Digit Code</label>
-                <input type="text" id="twoFactorCode" maxlength="6" class="w-full px-4 py-4 text-center text-2xl tracking-[0.5em] border border-gray-300 rounded-lg input-focus focus:outline-none focus:border-indigo-500 transition font-mono" placeholder="000000">
-            </div>
-            <button onclick="verify2FA()" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition transform hover:scale-[1.02]">
-                Verify
-            </button>
-            <button onclick="cancel2FA()" class="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 rounded-lg font-semibold transition">
-                Cancel
-            </button>
+        <div class="flex space-x-2">
+            <button onclick="requestNotifPermission()" class="px-4 py-1 bg-white text-purple-600 rounded-lg text-xs font-bold uppercase">Allow</button>
+            <button onclick="this.parentElement.parentElement.remove()" class="px-4 py-1 bg-purple-500 text-white rounded-lg text-xs font-bold uppercase">Later</button>
         </div>
     </div>
 
-    <!-- Register Form -->
-    <div id="registerForm" class="hidden bg-white rounded-2xl card-shadow p-8 w-full max-w-md">
-        <div class="text-center mb-8">
-            <div class="w-20 h-20 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full mx-auto flex items-center justify-center mb-4">
-                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
-                </svg>
+    <!-- Auth Pages -->
+    <div id="loginPage" class="flex items-center justify-center min-h-screen p-4">
+        <div class="glass w-full max-w-md p-8 relative z-10">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-gradient-to-br from-green-400 to-emerald-600 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                   <span class="text-3xl font-bold text-black">S</span>
+                </div>
+                <h1 class="text-3xl font-bold mb-2 tracking-tight">SaebMC Studio</h1>
+                <p class="text-gray-400 text-sm">Authentication Protocol v25.0</p>
+                <div id="initStatus" class="mt-4 text-[10px] font-bold uppercase tracking-[0.2em] opacity-80">📡 Initializing Core...</div>
             </div>
-            <h1 class="text-3xl font-bold text-gray-800">Create Account</h1>
-            <p class="text-gray-500 mt-2">Join us today</p>
+
+            <form id="loginForm" class="space-y-5">
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Identification</label>
+                    <input type="text" id="loginUsername" class="w-full p-4 outline-none transition-all" placeholder="Username" required>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Access Key</label>
+                    <input type="password" id="loginPassword" class="w-full p-4 outline-none transition-all" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn-primary w-full p-4 rounded-xl font-bold uppercase tracking-widest mt-4">Authorize Access</button>
+            </form>
+            <p class="text-center mt-8 text-xs text-gray-500">
+                New user detected? <a href="#" onclick="showRegister()" class="text-emerald-400 font-bold hover:text-emerald-300 transition-colors uppercase ml-1">Establish Account</a>
+            </p>
+            <div class="text-center mt-10">
+                <button onclick="localStorage.clear(); sessionStorage.clear(); location.reload();" class="text-[9px] text-gray-600 hover:text-red-500 uppercase tracking-[0.2em] transition-all">Emergency System Reset</button>
+            </div>
         </div>
-        
-        <div id="registerError" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4"></div>
-        <div id="registerSuccess" class="hidden bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg mb-4"></div>
-        
-        <div class="space-y-5">
-            <div>
-                <label class="block text-gray-700 font-medium mb-2">Display Name</label>
-                <input type="text" id="registerName" class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus focus:outline-none focus:border-indigo-500 transition" placeholder="Enter your display name">
+    </div>
+
+    <div id="registerPage" class="hidden flex items-center justify-center min-h-screen p-4">
+        <div class="glass w-full max-w-md p-8 rounded-2xl shadow-2xl">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold mb-2">Create Account</h1>
+                <p class="text-gray-500">Join the SaebMC community</p>
             </div>
-            <div>
-                <label class="block text-gray-700 font-medium mb-2">Username</label>
-                <input type="text" id="registerUsername" class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus focus:outline-none focus:border-indigo-500 transition" placeholder="Choose a username (no spaces)">
+            <form id="registerForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Full Name</label>
+                    <input type="text" id="regName" class="w-full p-3 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-purple-500" placeholder="John Doe" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Username</label>
+                    <input type="text" id="regUsername" class="w-full p-3 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-purple-500" placeholder="johndoe" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Password</label>
+                    <input type="password" id="regPassword" class="w-full p-3 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-purple-500" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn-primary w-full p-3 rounded-lg font-semibold mt-4">Sign Up</button>
+            </form>
+            <p class="text-center mt-6 text-sm">
+                Already have an account? <a href="#" onclick="showLogin()" class="text-purple-600 font-semibold hover:underline">Log In</a>
+            </p>
+        </div>
+    </div>
+
+    <div id="tfaPage" class="hidden flex items-center justify-center min-h-screen p-4">
+        <div class="glass w-full max-w-md p-8 rounded-2xl shadow-2xl">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl"><i class="fas fa-shield-alt"></i></div>
+                <h1 class="text-2xl font-bold mb-2">Two-Factor Authentication</h1>
+                <p class="text-gray-500">Enter the 6-digit code from your app</p>
             </div>
-            <div>
-                <label class="block text-gray-700 font-medium mb-2">Password</label>
-                <input type="password" id="registerPassword" class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus focus:outline-none focus:border-indigo-500 transition" placeholder="Create a password">
-            </div>
-            <div>
-                <label class="block text-gray-700 font-medium mb-2">Confirm Password</label>
-                <input type="password" id="confirmPassword" class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus focus:outline-none focus:border-indigo-500 transition" placeholder="Confirm your password">
-            </div>
-            <button onclick="register()" class="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition transform hover:scale-[1.02]">
-                Create Account
+            <form id="tfaForm" class="space-y-4">
+                <input type="text" id="tfaCode" maxlength="6" class="w-full p-4 text-center text-3xl font-bold tracking-widest rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-purple-500" placeholder="000000" required>
+                <button type="submit" class="btn-primary w-full p-3 rounded-lg font-semibold">Verify</button>
+            </form>
+            <button onclick="showLogin()" class="w-full mt-4 text-sm text-gray-500 hover:text-purple-600">Back to Login</button>
+        </div>
+    </div>
+
+    <!-- Public Page View -->
+    <div id="publicPage" class="hidden min-h-screen flex items-center justify-center p-4">
+        <div id="pageContainer" class="w-full max-w-2xl glass p-8 rounded-3xl shadow-2xl relative overflow-hidden">
+            <button id="publicBackBtn" onclick="goBackFromPublic()" class="absolute top-6 left-6 p-3 bg-white/10 hover:bg-white/20 backdrop-blur-xl border border-white/20 rounded-full transition-all z-[100] shadow-xl group active:scale-90" title="Back">
+                <i class="fas fa-arrow-left text-white group-hover:-translate-x-1 transition-transform"></i>
             </button>
+            <button id="publicCopyBtn" onclick="copyProfileLink()" class="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 backdrop-blur-xl border border-white/20 rounded-full transition-all z-[100] flex items-center justify-center w-12 h-12 shadow-xl group active:scale-90" title="Copy Page Link">
+                <i class="fas fa-link text-white group-hover:rotate-12 transition-transform"></i>
+            </button>
+            <div id="pageContent" class="relative z-10 text-center">
+                <div id="pageAvatar" class="w-32 h-32 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-6xl mx-auto mb-6 shadow-xl border-4 border-white/30">👋</div>
+                <h1 id="pageName" class="text-4xl font-bold mb-2">Display Name</h1>
+                <p id="pageUsername" class="text-lg opacity-70 mb-6">@username</p>
+                <div id="pageBioDisplay" class="text-lg mb-8 max-w-md mx-auto leading-relaxed">This is the user bio area.</div>
+                
+                <div id="pageSocialsDisplay" class="flex flex-wrap justify-center gap-4">
+                    <!-- Social icons will be injected here -->
+                </div>
+            </div>
+            <!-- Decorative background elements -->
+            <div id="patternOverlay" class="absolute inset-0 opacity-10 pointer-events-none"></div>
+            <div class="absolute -top-24 -right-24 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+            <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-black/10 rounded-full blur-3xl"></div>
         </div>
-        
-        <p class="text-center text-gray-600 mt-6">
-            Already have an account? 
-            <a href="#" onclick="showLogin()" class="text-indigo-600 font-semibold hover:underline">Sign in</a>
-        </p>
     </div>
 
     <!-- Dashboard -->
-    <div id="dashboard" class="hidden w-full max-w-6xl">
-        <div class="bg-white rounded-2xl card-shadow overflow-hidden">
-            <!-- Header -->
-            <div class="bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white">
-                <div class="flex justify-between items-center flex-wrap gap-4">
-                    <div class="flex items-center gap-3">
-                        <div>
-                            <div class="flex items-center gap-2">
-                                <h1 class="text-2xl font-bold">Dashboard</h1>
-                                <span id="roleBadge" class="hidden admin-badge text-xs px-2 py-1 rounded-full font-bold">ADMIN</span>
-                            </div>
-                            <p class="opacity-80">Welcome back, <span id="userName"></span>!</p>
-                        </div>
+    <div id="dashboard" class="hidden min-h-screen">
+        <nav class="glass p-4 sticky top-0 z-40">
+            <div class="max-w-7xl mx-auto flex items-center justify-between">
+                <div class="flex items-center space-x-2 cursor-pointer" onclick="showDashboard()">
+                    <div id="navLogo" class="w-10 h-10 bg-purple-600 text-white rounded-xl flex items-center justify-center text-xl font-bold">S</div>
+                    <span id="navTitle" class="text-xl font-bold hidden md:block">SaebMC</span>
+                </div>
+                <div class="flex items-center space-x-2 md:space-x-3">
+                    <div id="onlineStatusBadge" class="hidden sm:flex items-center space-x-2 text-[10px] font-bold uppercase mr-2">
+                        <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                        <span>Online</span>
                     </div>
-                    <div class="flex gap-2 flex-wrap">
-                        <button onclick="openChat()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition flex items-center gap-2">
-                            <span class="text-lg">💬</span>
-                            Chat
+                    <button onclick="toggleDarkMode()" class="p-1.5 md:p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 transition-colors" title="Toggle Dark Mode">
+                        <i id="themeIcon" class="fas fa-moon"></i>
+                    </button>
+                    <button onclick="openNotifications()" class="p-1.5 md:p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 transition-colors relative">
+                        <i class="fas fa-bell"></i>
+                        <span id="notifBadge" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center border-2 border-white"></span>
+                    </button>
+                    <button onclick="openChat()" class="p-1.5 md:p-2 rounded-lg bg-purple-100 text-purple-600 hover:bg-purple-200 transition-colors" title="Chat">
+                        <i class="fas fa-comments"></i>
+                    </button>
+                    <div id="ownerPanelBtn" class="hidden">
+                        <button onclick="openOwnerPanel()" class="px-2 md:px-4 py-1.5 md:py-2 rounded-lg bg-rose-500 text-white font-semibold hover:bg-rose-600 transition-colors">
+                            <i class="fas fa-crown md:mr-1"></i> <span class="hidden md:inline">Owner</span>
                         </button>
-                        <button id="chatEditorBtn" onclick="openChatEditor()" class="hidden bg-gradient-to-r from-pink-500 to-rose-500 hover:opacity-90 px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-lg">
-                            <span class="text-lg">🎨</span>
-                            Chat Editor
-                        </button>
-                        <button onclick="toggleDarkMode()" id="darkModeBtn" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition flex items-center gap-2" title="Toggle Dark Mode">
-                            <span class="text-lg" id="darkModeIcon">🌙</span>
-                        </button>
-                        <button onclick="openNotifications()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition flex items-center gap-2 relative">
-                            <span class="text-lg">🔔</span>
-                            Notifications
-                            <span id="notifBadge" class="hidden absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow">0</span>
-                        </button>
-                        <button onclick="viewMyPage()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                            </svg>
-                            My Page
-                        </button>
-                        <button id="adminPanelBtn" onclick="showAdminPanel()" class="hidden bg-gradient-to-r from-red-500 to-rose-600 hover:opacity-90 px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-lg">
-                            <span class="text-lg">👑</span>
-                            Owner Panel
-                        </button>
-                        <button onclick="logout()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-                            </svg>
-                            Logout
+                    </div>
+                    <button onclick="logout()" class="p-1.5 md:p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 transition-colors" title="Logout">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <main class="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="glass p-6 rounded-2xl md:col-span-1 text-center h-fit">
+                    <div id="userAvatar" class="w-24 h-24 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-3xl flex items-center justify-center text-4xl font-bold mx-auto mb-4 shadow-lg">?</div>
+                    <h2 id="displayName" class="text-2xl font-bold">User Name</h2>
+                    <p id="displayUsername" class="text-purple-600 font-medium mb-4">@username</p>
+                    <div id="userRoleBadge" class="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-6">User</div>
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <button onclick="openEditProfile()" class="w-full p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-sm font-semibold hover:bg-gray-200 dark:hover:bg-gray-700">
+                                <i class="fas fa-user-edit mr-1"></i> Profile
+                            </button>
+                            <button onclick="openPageEditorModal()" class="w-full p-2 bg-blue-100 text-blue-600 rounded-lg text-sm font-semibold hover:bg-blue-200">
+                                <i class="fas fa-palette mr-1"></i> Edit Page
+                            </button>
+                        </div>
+                        <button onclick="viewMyPage()" class="w-full p-3 bg-purple-100 text-purple-600 rounded-lg text-sm font-bold hover:bg-purple-200 flex items-center justify-center space-x-2">
+                            <i class="fas fa-external-link-alt"></i> 
+                            <span>View Public Profile</span>
                         </button>
                     </div>
                 </div>
+
+                <div class="md:col-span-2 space-y-6">
+                    <div class="glass p-8 rounded-2xl">
+                        <h3 class="text-2xl font-bold mb-4">Welcome back!</h3>
+                        <p class="text-gray-500 mb-6">Explore your dashboard and manage your SaebMC Studio experience.</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-100 dark:border-purple-800">
+                                <div class="text-purple-600 mb-2"><i class="fas fa-shield-alt text-xl"></i></div>
+                                <h4 class="font-bold">2FA Status</h4>
+                                <p id="tfaStatus" class="text-sm text-gray-600 dark:text-gray-400">Disabled</p>
+                                <button onclick="openTFAModal()" class="mt-2 text-xs font-bold text-purple-600 uppercase hover:underline">Manage Security</button>
+                            </div>
+                            <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800">
+                                <div class="text-blue-600 mb-2"><i class="fas fa-palette text-xl"></i></div>
+                                <h4 class="font-bold">Page Editor</h4>
+                                <p class="text-sm text-gray-600 dark:text-gray-400">Customize your public presence</p>
+                                <button onclick="openPageEditorModal()" class="mt-2 text-xs font-bold text-blue-600 uppercase hover:underline">Edit Page</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="dashboardAlerts"></div>
+                </div>
             </div>
-            
-            <!-- Content -->
-            <div class="p-6">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="opacity-80">Total Users</p>
-                                <p class="text-3xl font-bold" id="totalUsers">0</p>
-                            </div>
-                            <svg class="w-12 h-12 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                            </svg>
-                        </div>
-                    </div>
-                    <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="opacity-80">Your Role</p>
-                                <p class="text-2xl font-bold" id="userRole">User</p>
-                            </div>
-                            <svg class="w-12 h-12 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-                            </svg>
-                        </div>
-                    </div>
-                    <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="opacity-80">2FA Status</p>
-                                <p class="text-2xl font-bold" id="twoFAStatus">Disabled</p>
-                            </div>
-                            <svg class="w-12 h-12 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                            </svg>
-                        </div>
-                    </div>
-                    <div class="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="opacity-80">Last Login</p>
-                                <p class="text-xl font-bold" id="lastLogin">Just now</p>
-                            </div>
-                            <svg class="w-12 h-12 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                        </div>
-                    </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="modalOverlay" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+        <!-- Edit Profile Modal -->
+        <div id="editProfileModal" class="hidden glass w-full max-w-lg p-6 md:p-8 rounded-2xl shadow-2xl relative">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors z-50"><i class="fas fa-times"></i></button>
+            <h2 class="text-2xl font-bold mb-6">Edit Profile</h2>
+            <form id="editProfileForm" class="space-y-4 overflow-y-auto max-h-[70vh] pr-2 custom-scrollbar">
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-1">Identity</label>
+                    <input type="text" id="editName" class="w-full p-3 rounded-lg outline-none" placeholder="Full Name">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Status Message</label>
+                    <input type="text" id="editStatusText" class="w-full p-3 rounded-lg outline-none" placeholder="Feeling obsidian...">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Pronouns</label>
+                    <input type="text" id="editPronouns" class="w-full p-3 rounded-lg outline-none" placeholder="they/them">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Username (Handle)</label>
+                    <input type="text" id="editUsername" class="w-full p-3 rounded-lg outline-none" placeholder="username" disabled>
+                    <p class="text-[9px] text-gray-500 mt-1 uppercase">Username changes are restricted to admin approval.</p>
                 </div>
                 
-                <!-- User Profile Card -->
-                <div class="bg-gray-50 rounded-xl p-6">
-                    <div class="flex items-center justify-between mb-4 flex-wrap gap-4">
-                        <h2 class="text-xl font-bold text-gray-800">Your Profile</h2>
-                        <div class="flex gap-2 flex-wrap">
-                            <button onclick="openPageEditor(currentUser.username)" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition flex items-center gap-2">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                                </svg>
-                                Edit My Page
-                            </button>
-                            <button onclick="openTwoFactorSetup()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition flex items-center gap-2">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                                </svg>
-                                <span id="twoFABtnText">Setup 2FA</span>
-                            </button>
-                            <button onclick="openEditProfile()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg transition flex items-center gap-2">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
-                                </svg>
-                                Edit Profile
-                            </button>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-4">
-                        <div class="w-16 h-16 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold" id="userAvatar"></div>
-                        <div>
-                            <p class="text-lg font-semibold text-gray-800" id="profileName"></p>
-                            <p class="text-gray-500">@<span id="profileUsername"></span></p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Owner Panel -->
-    <div id="adminPanel" class="hidden w-full max-w-6xl page-transition">
-        <div class="bg-white rounded-2xl card-shadow overflow-hidden hover-lift">
-            <div class="bg-gradient-to-r from-red-600 to-rose-700 p-6 text-white">
-                <div class="flex justify-between items-center flex-wrap gap-4">
+                <div class="p-4 bg-white/5 rounded-2xl border border-white/10 space-y-4">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-emerald-500">Security & Keys</label>
                     <div>
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <h1 class="text-2xl font-bold flex items-center gap-2">👑 Owner Panel</h1>
-                            <span id="storageModeBadge" class="text-xs bg-white/20 px-2 py-1 rounded-full font-semibold">Storage: Local</span>
-                        </div>
-                        <p class="opacity-80">Supreme control over all users, pages & site</p>
+                        <input type="password" id="editNewPassword" class="w-full p-3 rounded-lg outline-none text-sm" placeholder="New Password (leave blank to keep)">
                     </div>
-                    <div class="flex gap-2 flex-wrap">
-                        <button onclick="openSiteEditor()" class="bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-lg">
-                            <span class="text-lg">🎨</span>
-                            Edit Entire Site
-                        </button>
-                        <button onclick="openPublishModal()" class="bg-gradient-to-r from-emerald-500 to-teal-600 hover:opacity-90 px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-lg">
-                            <span class="text-lg">🚀</span>
-                            Publish / Deploy
-                        </button>
-                        <button onclick="openCloudSync()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition flex items-center gap-2">
-                            <span class="text-lg">☁️</span>
-                            Cloud Sync
-                        </button>
-                        <button onclick="showDashboard()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-                            </svg>
-                            Back to Dashboard
-                        </button>
+                    <div>
+                        <input type="password" id="editConfirmPassword" class="w-full p-3 rounded-lg outline-none text-sm" placeholder="Confirm New Password">
                     </div>
                 </div>
-            </div>
-            
-            <div class="p-6">
-                <h3 class="text-lg font-bold text-gray-800 mb-2">All Users</h3>
-                <div id="storageNotice" class="mb-4 hidden bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-xl text-sm"></div>
-                <div id="usersList" class="space-y-3"></div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Transfer Ownership Modal -->
-    <div id="transferOwnerModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl card-shadow p-8 w-full max-w-md text-center">
-            <div class="w-16 h-16 bg-gradient-to-r from-red-500 to-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span class="text-3xl">👑</span>
-            </div>
-            <h3 class="text-xl font-bold text-gray-800 mb-2">Transfer Ownership?</h3>
-            <p class="text-gray-500 mb-2">You are about to transfer your Owner role to:</p>
-            <p class="text-xl font-bold text-red-600 mb-4" id="transferTargetName"></p>
-            <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-left">
-                <p class="text-red-800 text-sm font-semibold mb-2">⚠️ WARNING - This action is IRREVERSIBLE!</p>
-                <ul class="text-red-700 text-sm space-y-1">
-                    <li>• You will be demoted to Admin</li>
-                    <li>• The new owner will have supreme control</li>
-                    <li>• They can demote or delete you</li>
-                    <li>• You cannot undo this action</li>
-                </ul>
-            </div>
-            <div class="mb-4">
-                <label class="block text-gray-700 text-sm font-medium mb-2">Type "TRANSFER" to confirm:</label>
-                <input type="text" id="transferConfirmInput" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500" placeholder="Type TRANSFER">
-            </div>
-            <div class="flex gap-3">
-                <button onclick="closeTransferModal()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-semibold transition">Cancel</button>
-                <button onclick="confirmTransferOwnership()" class="flex-1 bg-gradient-to-r from-red-500 to-rose-600 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">Transfer</button>
-            </div>
-        </div>
-    </div>
 
-    <!-- User Page Editor Modal -->
-    <div id="pageEditorModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-        <div class="bg-white rounded-2xl card-shadow p-6 w-full max-w-5xl my-8">
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="text-2xl font-bold text-gray-800">Edit User Page: <span id="editingUserName" class="text-indigo-600"></span></h2>
-                <button onclick="closePageEditor()" class="text-gray-400 hover:text-gray-600 transition">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-            
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Editor Section -->
-                <div class="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-                    <!-- Basic Settings -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">⚙️ Basic Settings</h3>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Page Title</label>
-                                <input type="text" id="pageTitle" class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus focus:outline-none focus:border-indigo-500 transition" placeholder="User's Page Title">
+                <div class="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
+                    <div>
+                        <span class="block text-sm font-bold">Studio Notifications</span>
+                        <span class="text-[10px] text-gray-500 uppercase">Toast and system alerts</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="editNotifsEnabled" class="sr-only peer" checked>
+                        <div class="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+                    </label>
+                </div>
+
+                <button type="submit" class="w-full p-4 rounded-xl font-bold uppercase tracking-widest mt-4 shadow-lg active:scale-95 transition-all bg-gradient-to-r from-emerald-500 to-emerald-600 text-black hover:shadow-emerald-500/20">Apply Profile Changes</button>
+            </form>
+        </div>
+
+        <!-- Page Editor Modal -->
+        <div id="pageEditorModal" class="hidden glass w-full max-w-2xl p-6 md:p-8 rounded-2xl shadow-2xl relative">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            <h2 class="text-2xl font-bold mb-2">Edit Public Page</h2>
+            <p class="text-sm text-gray-500 mb-6">Customize how you appear to others in the SaebMC community.</p>
+            <form id="pageEditorForm" class="space-y-6 overflow-y-auto max-h-[75vh] pr-2 custom-scrollbar">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Display Name</label>
+                            <input type="text" id="pageDisplayName" class="w-full p-3 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-purple-500" placeholder="Your Page Name">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Custom Bio</label>
+                            <textarea id="pageBio" rows="4" class="w-full p-3 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-purple-500" placeholder="Tell the world about yourself..."></textarea>
+                            <div class="flex space-x-3 mt-2">
+                                <button type="button" onclick="suggestBio()" class="text-xs text-purple-600 font-bold uppercase hover:underline">✨ Suggest Bio</button>
+                                <button type="button" onclick="aiAutoStyle()" class="text-xs text-blue-600 font-bold uppercase hover:underline">🤖 AI Auto-Style</button>
                             </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Bio Text</label>
-                                <textarea id="pageBio" class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus focus:outline-none focus:border-indigo-500 transition" rows="2" placeholder="User bio..."></textarea>
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Avatar Emoji (optional)</label>
-                                <input type="text" id="pageAvatar" class="w-full px-3 py-2 border border-gray-300 rounded-lg input-focus focus:outline-none focus:border-indigo-500 transition" placeholder="e.g. 🎮 or leave empty for initial" maxlength="2">
-                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Page Avatar Emoji</label>
+                            <input type="text" id="pageAvatarEmoji" class="w-full p-3 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-purple-500" placeholder="👋">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Font Weight</label>
+                            <select id="pageFontWeight" class="w-full p-3 rounded-lg border border-gray-200 outline-none">
+                                <option value="normal">Normal</option>
+                                <option value="bold">Bold</option>
+                                <option value="lighter">Light</option>
+                            </select>
                         </div>
                     </div>
-                    
-                    <!-- Theme & Colors -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">🎨 Theme & Colors</h3>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Background Start</label>
-                                <input type="color" id="pageBgColor" value="#667eea" class="w-full h-10 rounded-lg cursor-pointer">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Background End</label>
-                                <input type="color" id="pageBgColor2" value="#764ba2" class="w-full h-10 rounded-lg cursor-pointer">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Text Color</label>
-                                <input type="color" id="pageTextColor" value="#ffffff" class="w-full h-10 rounded-lg cursor-pointer">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Card Color</label>
-                                <input type="color" id="pageCardColor" value="#ffffff" class="w-full h-10 rounded-lg cursor-pointer">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Theme Primary Color</label>
+                            <div class="flex items-center space-x-2">
+                                <input type="color" id="pageThemeColor" class="flex-1 h-12 rounded-lg cursor-pointer bg-transparent border-none">
+                                <button type="button" onclick="randomTheme()" class="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg" title="Random Theme"><i class="fas fa-magic"></i></button>
                             </div>
                         </div>
-                        <div class="mt-3">
-                            <label class="block text-gray-700 text-sm font-medium mb-1">Background Pattern</label>
-                            <select id="pageBgPattern" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                                <option value="none">None</option>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Font Choice</label>
+                            <select id="pageFont" class="w-full p-3 rounded-lg border border-gray-200 outline-none">
+                                <option value="Inter">Inter (Sans)</option>
+                                <option value="Poppins">Poppins (Modern)</option>
+                                <option value="Playfair Display">Playfair (Serif)</option>
+                                <option value="JetBrains Mono">JetBrains (Mono)</option>
+                                <option value="Space Grotesk">Space Grotesk</option>
+                                <option value="Montserrat">Montserrat</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Border Radius</label>
+                            <input type="range" id="pageBorderRadius" min="0" max="40" step="1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Social Links (JSON)</label>
+                            <textarea id="pageSocialLinks" rows="3" class="w-full p-3 rounded-lg border border-gray-200 font-mono text-xs" placeholder='{"Twitter": "...", "GitHub": "..."}'></textarea>
+                            <p class="text-[10px] text-gray-400 mt-1">Example: {"Twitter": "https://twitter.com/..."}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Custom Background Pattern</label>
+                            <select id="pagePattern" class="w-full p-3 rounded-lg border border-gray-200 outline-none">
+                                <option value="none">Solid Color</option>
                                 <option value="dots">Dots</option>
                                 <option value="grid">Grid</option>
-                                <option value="waves">Waves</option>
-                                <option value="stars">Stars ✨</option>
+                                <option value="bubbles">Bubbles</option>
                             </select>
                         </div>
-                        <div class="mt-3 flex items-center gap-3">
-                            <input type="checkbox" id="pageGlowEffect" class="w-4 h-4 text-indigo-600">
-                            <label class="text-gray-700 text-sm font-medium">Enable Glow Effects</label>
-                        </div>
                     </div>
-                    
-                    <!-- Social Links -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="font-bold text-gray-800 flex items-center gap-2">🔗 Social Links</h3>
-                            <button onclick="addSocialLink()" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-lg text-sm transition">+ Add Link</button>
-                        </div>
-                        <div id="socialLinksList" class="space-y-2 max-h-32 overflow-y-auto"></div>
-                    </div>
-                    
-                    <!-- Custom Buttons -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="font-bold text-gray-800 flex items-center gap-2">🔘 Custom Buttons</h3>
-                            <button onclick="addButton()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg text-sm transition">+ Add Button</button>
-                        </div>
-                        <div id="buttonsList" class="space-y-2 max-h-40 overflow-y-auto"></div>
-                    </div>
-                    
-                    <!-- Sound Effects -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="font-bold text-gray-800 flex items-center gap-2">🔊 Sound Effects</h3>
-                            <button onclick="addSound()" class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded-lg text-sm transition">+ Add Sound</button>
-                        </div>
-                        <div id="soundsList" class="space-y-2 max-h-32 overflow-y-auto"></div>
-                    </div>
-                    
-                    <!-- Image Gallery -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="font-bold text-gray-800 flex items-center gap-2">🖼️ Image Gallery</h3>
-                            <button onclick="addImage()" class="bg-pink-500 hover:bg-pink-600 text-white px-3 py-1 rounded-lg text-sm transition">+ Add Image</button>
-                        </div>
-                        <div id="imagesList" class="space-y-2 max-h-32 overflow-y-auto"></div>
-                    </div>
-                    
-                    <!-- Embeds -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="font-bold text-gray-800 flex items-center gap-2">📺 Embeds (YouTube/Spotify)</h3>
-                            <button onclick="addEmbed()" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg text-sm transition">+ Add Embed</button>
-                        </div>
-                        <div id="embedsList" class="space-y-2 max-h-32 overflow-y-auto"></div>
-                    </div>
-                    
-                    <!-- Text Sections -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="font-bold text-gray-800 flex items-center gap-2">📝 Text Sections</h3>
-                            <button onclick="addTextSection()" class="bg-teal-500 hover:bg-teal-600 text-white px-3 py-1 rounded-lg text-sm transition">+ Add Section</button>
-                        </div>
-                        <div id="textSectionsList" class="space-y-2 max-h-32 overflow-y-auto"></div>
-                    </div>
-                    
-                    <!-- Stats/Counters -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="font-bold text-gray-800 flex items-center gap-2">📊 Stats/Counters</h3>
-                            <button onclick="addStat()" class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded-lg text-sm transition">+ Add Stat</button>
-                        </div>
-                        <div id="statsList" class="space-y-2 max-h-32 overflow-y-auto"></div>
-                    </div>
-                    
-                    <button onclick="savePageConfig()" class="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">
-                        💾 Save Page Configuration
-                    </button>
                 </div>
-                
-                <!-- Preview Section -->
-                <div class="bg-gray-100 rounded-xl p-4 sticky top-0">
-                    <h3 class="font-bold text-gray-800 mb-3">📱 Live Preview</h3>
-                    <div id="pagePreview" class="rounded-xl overflow-hidden min-h-[500px] max-h-[70vh] overflow-y-auto"></div>
-                </div>
-            </div>
+                <button type="submit" class="btn-primary w-full p-4 rounded-xl font-bold shadow-lg transform transition active:scale-95">Save Changes</button>
+            </form>
         </div>
-    </div>
 
-    <!-- User Page View -->
-    <div id="userPageView" class="hidden fixed inset-0 z-50 overflow-y-auto">
-        <div id="userPageContent" class="min-h-screen p-8"></div>
-        <button onclick="closeUserPage()" class="fixed top-4 right-4 bg-white/90 hover:bg-white text-gray-800 px-4 py-2 rounded-lg shadow-lg transition flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-            Close
-        </button>
-    </div>
-
-    <!-- 2FA Setup Modal -->
-    <div id="twoFactorModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl card-shadow p-8 w-full max-w-md">
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="text-2xl font-bold text-gray-800">Setup 2FA</h2>
-                <button onclick="closeTwoFactorSetup()" class="text-gray-400 hover:text-gray-600 transition">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
+        <!-- Chat Modal -->
+        <div id="chatModal" class="hidden glass w-full max-w-5xl h-[650px] rounded-2xl shadow-2xl flex overflow-hidden">
+            <div id="chatSidebar" class="w-full md:w-72 border-r border-gray-200 dark:border-gray-700 flex flex-col bg-gray-50/50 dark:bg-gray-900/50">
+                <div class="p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex justify-between items-center">
+                    <h3 class="text-lg font-bold">Chat Studio</h3>
+                    <button onclick="closeModal()" class="md:hidden p-2 text-gray-400"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="flex p-2 bg-white/50 dark:bg-gray-900/50 space-x-1">
+                    <button onclick="setChatMode('public')" id="btnTabPublic" class="flex-1 p-2 rounded-lg text-xs font-bold uppercase transition-colors">Public</button>
+                    <button onclick="setChatMode('dm')" id="btnTabDM" class="flex-1 p-2 rounded-lg text-xs font-bold uppercase transition-colors">DMs</button>
+                    <button onclick="setChatMode('groups')" id="btnTabGroups" class="flex-1 p-2 rounded-lg text-xs font-bold uppercase transition-colors">Groups</button>
+                </div>
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-2" id="chatSidebarContent"></div>
             </div>
-            
-            <div id="twoFactorSetupContent">
-                <div class="text-center mb-6">
-                    <p class="text-gray-600 mb-4">Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)</p>
-                    <div id="qrCode" class="inline-block p-4 bg-white rounded-xl shadow-inner"></div>
-                </div>
-                
-                <div class="bg-gray-50 rounded-lg p-3 mb-4">
-                    <p class="text-xs text-gray-500 mb-1">Or enter this secret manually:</p>
-                    <p id="secretKey" class="font-mono text-sm break-all text-gray-800"></p>
-                </div>
-                
-                <div id="setup2FAError" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4"></div>
-                
-                <div class="space-y-4">
+            <div class="flex-1 flex flex-col bg-white dark:bg-gray-900 chat-main-view">
+                <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                     <div>
-                        <label class="block text-gray-700 font-medium mb-2">Enter Code to Verify</label>
-                        <input type="text" id="verify2FACode" maxlength="6" class="w-full px-4 py-3 text-center text-xl tracking-[0.3em] border border-gray-300 rounded-lg input-focus focus:outline-none focus:border-indigo-500 transition font-mono" placeholder="000000">
-                    </div>
-                    <button onclick="enable2FA()" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">
-                        Enable 2FA
-                    </button>
-                </div>
-            </div>
-            
-            <div id="twoFactorDisableContent" class="hidden text-center">
-                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-                    </svg>
-                </div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">2FA is Active</h3>
-                <p class="text-gray-500 mb-6">Your account is protected with two-factor authentication.</p>
-                <button onclick="disable2FA()" class="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-semibold transition">
-                    Disable 2FA
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Edit Profile Modal -->
-    <div id="editProfileModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl card-shadow p-8 w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="text-2xl font-bold text-gray-800">Edit Profile</h2>
-                <button onclick="closeEditProfile()" class="text-gray-400 hover:text-gray-600 transition">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-            
-            <div id="editError" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4"></div>
-            <div id="editSuccess" class="hidden bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg mb-4"></div>
-            
-            <div class="flex justify-center mb-6">
-                <div class="w-24 h-24 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white text-3xl font-bold" id="editAvatar"></div>
-            </div>
-            
-            <div class="space-y-5">
-                <div>
-                    <label class="block text-gray-700 font-medium mb-2">Display Name</label>
-                    <input type="text" id="editName" class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus focus:outline-none focus:border-indigo-500 transition" placeholder="Enter your display name">
-                </div>
-                <div>
-                    <label class="block text-gray-700 font-medium mb-2">Username</label>
-                    <div class="flex items-center">
-                        <span class="bg-gray-100 border border-r-0 border-gray-300 px-3 py-3 rounded-l-lg text-gray-500">@</span>
-                        <input type="text" id="editUsername" class="w-full px-4 py-3 border border-gray-300 rounded-r-lg input-focus focus:outline-none focus:border-indigo-500 transition" placeholder="username">
-                    </div>
-                </div>
-                
-                <div class="border-t border-gray-200 pt-4">
-                    <p class="text-sm text-gray-500 mb-4">Leave password fields empty to keep current password</p>
-                </div>
-                
-                <div>
-                    <label class="block text-gray-700 font-medium mb-2">Current Password</label>
-                    <input type="password" id="currentPassword" class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus focus:outline-none focus:border-indigo-500 transition" placeholder="Enter current password">
-                </div>
-                <div>
-                    <label class="block text-gray-700 font-medium mb-2">New Password</label>
-                    <input type="password" id="newPassword" class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus focus:outline-none focus:border-indigo-500 transition" placeholder="Enter new password">
-                </div>
-                <div>
-                    <label class="block text-gray-700 font-medium mb-2">Confirm New Password</label>
-                    <input type="password" id="confirmNewPassword" class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus focus:outline-none focus:border-indigo-500 transition" placeholder="Confirm new password">
-                </div>
-                
-                <div class="flex gap-3 pt-2">
-                    <button onclick="closeEditProfile()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-semibold transition">Cancel</button>
-                    <button onclick="saveProfile()" class="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">Save Changes</button>
-                </div>
-                
-                <div class="border-t border-gray-200 pt-4 mt-4">
-                    <button onclick="confirmDeleteAccount()" class="w-full bg-red-50 hover:bg-red-100 text-red-600 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                        </svg>
-                        Delete Account
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Delete Confirmation Modal -->
-    <div id="deleteModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl card-shadow p-8 w-full max-w-sm text-center">
-            <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                </svg>
-            </div>
-            <h3 class="text-xl font-bold text-gray-800 mb-2">Delete Account?</h3>
-            <p class="text-gray-500 mb-6">This action cannot be undone. All your data will be permanently deleted.</p>
-            <div class="flex gap-3">
-                <button onclick="closeDeleteModal()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-semibold transition">Cancel</button>
-                <button onclick="deleteAccount()" class="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-semibold transition">Delete</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Site Editor Modal (Owner Only) -->
-    <div id="siteEditorModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-        <div class="bg-white rounded-2xl card-shadow p-6 w-full max-w-4xl my-8 max-h-[90vh] overflow-y-auto">
-            <div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
-                <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">🎨 Site Editor <span class="text-sm bg-red-500 text-white px-2 py-1 rounded-full">Owner Only</span></h2>
-                <div class="flex items-center gap-2">
-                    <button onclick="openAIAssistant()" class="bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 text-white px-3 py-2 rounded-lg transition flex items-center gap-2 shadow">
-                        <span>🤖</span>
-                        Edit with AI Assistant
-                    </button>
-                    <button onclick="closeSiteEditor()" class="text-gray-400 hover:text-gray-600 transition" aria-label="Close">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-            
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Editor Controls -->
-                <div class="space-y-4">
-                    <!-- Site Branding -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">🏷️ Site Branding</h3>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Site Name</label>
-                                <input type="text" id="siteName" class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Login System Pro">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Site Logo Emoji</label>
-                                <input type="text" id="siteLogo" class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="🚀" maxlength="2">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Welcome Message</label>
-                                <input type="text" id="siteWelcome" class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Welcome Back">
-                            </div>
+                        <div class="flex items-center space-x-2">
+                            <!-- Sidebar Toggle (Mobile) -->
+                            <button onclick="toggleChatSidebar()" class="md:hidden mr-2 p-2 bg-purple-600/20 text-purple-400 rounded-xl active:scale-90 transition-all">
+                                <i class="fas fa-bars"></i>
+                            </button>
+                            <h4 id="chatChannelTitle" class="font-bold">🌐 Public Chat</h4>
+                            <div id="chatConnStatus" class="w-2 h-2 rounded-full bg-gray-300" title="Checking connection..."></div>
                         </div>
+                        <p id="chatChannelStatus" class="text-xs text-gray-500">Everyone can see messages here</p>
                     </div>
-                    
-                    <!-- Colors -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">🎨 Global Colors</h3>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Background Start</label>
-                                <input type="color" id="siteBg1" value="#667eea" class="w-full h-10 rounded-lg cursor-pointer">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Background End</label>
-                                <input type="color" id="siteBg2" value="#764ba2" class="w-full h-10 rounded-lg cursor-pointer">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Primary Color</label>
-                                <input type="color" id="sitePrimary" value="#6366f1" class="w-full h-10 rounded-lg cursor-pointer">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Secondary Color</label>
-                                <input type="color" id="siteSecondary" value="#8b5cf6" class="w-full h-10 rounded-lg cursor-pointer">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Typography -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">✏️ Typography</h3>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Font Family</label>
-                                <select id="siteFont" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                                    <option value="Inter, system-ui, sans-serif">Inter (Default)</option>
-                                    <option value="'Poppins', sans-serif">Poppins</option>
-                                    <option value="'Roboto', sans-serif">Roboto</option>
-                                    <option value="'Montserrat', sans-serif">Montserrat</option>
-                                    <option value="'Playfair Display', serif">Playfair Display</option>
-                                    <option value="'Space Grotesk', sans-serif">Space Grotesk</option>
-                                    <option value="'JetBrains Mono', monospace">JetBrains Mono</option>
-                                    <option value="'Comic Sans MS', cursive">Comic Sans 😄</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Effects -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">✨ Effects & Animations</h3>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Background Pattern</label>
-                                <select id="siteBgPattern" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                                    <option value="none">None</option>
-                                    <option value="dots">Dots</option>
-                                    <option value="grid">Grid</option>
-                                    <option value="waves">Waves</option>
-                                    <option value="stars">Stars ✨</option>
-                                    <option value="particles">Floating Particles 🫧</option>
-                                </select>
-                            </div>
-                            <div class="flex flex-col gap-2">
-                                <label class="flex items-center gap-2">
-                                    <input type="checkbox" id="siteParticles" class="w-4 h-4 text-indigo-600">
-                                    <span class="text-gray-700 text-sm">Enable Floating Particles</span>
-                                </label>
-                                <label class="flex items-center gap-2">
-                                    <input type="checkbox" id="siteGlow" class="w-4 h-4 text-indigo-600">
-                                    <span class="text-gray-700 text-sm">Enable Neon Glow</span>
-                                </label>
-                                <label class="flex items-center gap-2">
-                                    <input type="checkbox" id="siteFloating" class="w-4 h-4 text-indigo-600">
-                                    <span class="text-gray-700 text-sm">Floating Cards Animation</span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Card Style -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">🃏 Card Style</h3>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Card Style</label>
-                                <select id="siteCardStyle" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                                    <option value="solid">Solid White</option>
-                                    <option value="glass">Glassmorphism</option>
-                                    <option value="dark">Dark Mode</option>
-                                    <option value="gradient">Gradient</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Border Radius</label>
-                                <input type="range" id="siteBorderRadius" min="0" max="30" value="16" class="w-full">
-                                <div class="flex justify-between text-xs text-gray-500">
-                                    <span>Square</span>
-                                    <span>Rounded</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Custom CSS -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">💻 Custom CSS</h3>
-                        <textarea id="siteCustomCSS" class="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm" rows="4" placeholder="/* Add your custom CSS here */"></textarea>
-                    </div>
-                    
-                    <div class="flex gap-3">
-                        <button onclick="resetSiteSettings()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-semibold transition">
-                            🔄 Reset to Default
-                        </button>
-                        <button onclick="saveSiteSettings()" class="flex-1 bg-gradient-to-r from-red-500 to-rose-600 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">
-                            💾 Save Site Settings
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Live Preview -->
-                <div class="bg-gray-100 rounded-xl p-4 sticky top-0">
-                    <h3 class="font-bold text-gray-800 mb-3">📱 Live Preview</h3>
-                    <div id="sitePreview" class="rounded-xl overflow-hidden min-h-[500px]"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- AI Assistant Modal (Owner Only) -->
-    <div id="aiAssistantModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl card-shadow p-6 w-full max-w-2xl">
-            <div class="flex items-center justify-between gap-3 mb-4">
-                <div>
-                    <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">🤖 AI Assistant <span id="aiModeBadge" class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">Offline helper</span></h3>
-                    <p class="text-sm text-gray-500">Describe what you want. I’ll translate it into Site Editor settings.</p>
-                </div>
-                <button onclick="closeAIAssistant()" class="text-gray-400 hover:text-gray-600 transition" aria-label="Close">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-
-            <!-- Real AI Controls -->
-            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
-                <div class="flex items-center justify-between gap-3 flex-wrap">
-                    <label class="flex items-center gap-2 text-sm font-semibold text-gray-800">
-                        <input type="checkbox" id="aiUseReal" class="w-4 h-4 text-indigo-600">
-                        Use real AI (API)
-                    </label>
-                    <span class="text-xs text-gray-500">Recommended: OpenRouter (works from browser). OpenAI may need a proxy due to CORS.</span>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Provider</label>
-                        <select id="aiProvider" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                            <option value="openrouter">OpenRouter</option>
-                            <option value="openai">OpenAI (may be blocked by CORS)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Model</label>
-                        <input id="aiModel" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" placeholder="openai/gpt-4o-mini">
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">API Key</label>
-                        <input id="aiApiKey" type="password" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" placeholder="Paste your API key">
-                        <div class="mt-2 flex items-center justify-between gap-3 flex-wrap">
-                            <label class="flex items-center gap-2 text-xs text-gray-600">
-                                <input type="checkbox" id="aiRememberKey" class="w-4 h-4 text-indigo-600">
-                                Remember key in this browser (localStorage)
-                            </label>
-                            <button id="aiClearKeyBtn" onclick="clearAIKey()" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1.5 rounded-lg transition">
-                                Clear saved key
+                    <div class="flex space-x-2">
+                        <div id="groupAdminActions" class="hidden flex space-x-3 items-center">
+                            <button onclick="manageGroupMembers()" class="px-3 py-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded-2xl transition-all flex items-center space-x-2" title="Manage Members">
+                                <i class="fas fa-users-cog text-sm"></i>
+                                <span class="text-[10px] font-bold uppercase tracking-widest hidden md:inline">Authority</span>
+                            </button>
+                            <button onclick="deleteCurrentGroup()" class="p-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-xl transition-all" title="Delete Group">
+                                <i class="fas fa-trash-alt"></i>
                             </button>
                         </div>
-                        <p class="mt-2 text-[11px] text-gray-500">Security note: This is a front-end demo. If you enable “remember”, your key is stored locally in your browser. Don’t use a production key on shared devices.</p>
+                        <button onclick="closeModal()" class="hidden md:block p-2 text-gray-400 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
                     </div>
                 </div>
-            </div>
-
-            <div class="flex flex-wrap gap-2 mb-4">
-                <button onclick="setAIPrompt('Make it dark neon cyberpunk with glass cards and particles')" class="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg">Dark Neon Cyberpunk</button>
-                <button onclick="setAIPrompt('Make it a clean minimal light theme with rounded cards and no effects')" class="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg">Clean Minimal</button>
-                <button onclick="setAIPrompt('Use a sunset gradient with glow and stars background')" class="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg">Sunset + Stars</button>
-                <button onclick="setAIPrompt('Ocean blue theme with dots pattern and floating cards')" class="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg">Ocean + Dots</button>
-            </div>
-
-            <textarea id="aiPrompt" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500 font-mono text-sm" rows="5" placeholder="Example: Make it dark, glass cards, neon glow, add particles, use Poppins font, and rounded corners."></textarea>
-
-            <div id="aiResult" class="mt-3 hidden bg-indigo-50 border border-indigo-200 text-indigo-800 px-4 py-3 rounded-lg text-sm"></div>
-
-            <div class="flex flex-wrap gap-3 mt-5">
-                <button id="aiApplyBtn" onclick="applyAIPrompt()" class="flex-1 min-w-40 bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 text-white py-3 rounded-lg font-semibold transition">
-                    Apply to Site Editor
-                </button>
-                <button onclick="closeAIAssistant()" class="flex-1 min-w-40 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-semibold transition">
-                    Close
-                </button>
-            </div>
-
-            <p id="aiFooterNote" class="mt-4 text-xs text-gray-500">Tip: Open the Site Editor first, then use this assistant. (Offline mode works without any API key.)</p>
-        </div>
-    </div>
-
-    <!-- Cloud Sync Modal -->
-    <div id="cloudSyncModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-        <div class="bg-white rounded-2xl card-shadow p-6 w-full max-w-3xl my-8">
-            <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
-                <h3 class="text-2xl font-bold text-gray-800 flex items-center gap-2">☁️ Cloud Sync</h3>
-                <button onclick="closeCloudSync()" class="text-gray-400 hover:text-gray-600 transition" aria-label="Close">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-
-            <div class="space-y-5 text-gray-700">
-                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                    <p class="font-semibold text-amber-900 mb-1">Why your friend’s account doesn’t show up</p>
-                    <p class="text-sm text-amber-800">Right now, in <span class="font-mono">Local</span> mode, users are stored in <span class="font-mono">localStorage</span>. That means every device/browser has its own separate user list. To share users across devices, enable Cloud Sync (Supabase).</p>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="md:col-span-2 flex items-center justify-between gap-3 flex-wrap bg-gray-50 border border-gray-200 rounded-xl p-4">
-                        <label class="flex items-center gap-2 font-semibold">
-                            <input id="cloudEnabled" type="checkbox" class="w-4 h-4 text-indigo-600">
-                            Enable Cloud Sync (shared users)
+                <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-gray-50/30 dark:bg-gray-950/30"></div>
+                <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 pb-safe">
+                    <div id="imagePreview" class="hidden mb-2 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center space-x-2">
+                        <img id="previewImg" src="" class="h-12 w-12 object-cover rounded">
+                        <span class="text-xs text-gray-500 flex-1 truncate">image.png</span>
+                        <button onclick="clearImagePreview()" class="text-red-500"><i class="fas fa-times"></i></button>
+                    </div>
+                    <form id="chatForm" class="flex space-x-2 items-center">
+                        <label class="cursor-pointer p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                            <i class="fas fa-camera text-emerald-500"></i>
+                            <input type="file" id="chatFile" class="hidden" accept="image/*" onchange="handleFilePreview(this)">
                         </label>
-                        <span id="cloudStatus" class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">Not configured</span>
-                    </div>
-
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Supabase Project URL</label>
-                        <input id="cloudSupabaseUrl" type="url" class="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm" placeholder="https://xxxx.supabase.co">
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Supabase Anon Key</label>
-                        <input id="cloudSupabaseAnonKey" type="password" class="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm" placeholder="eyJ...">
-                        <p class="mt-1 text-[11px] text-gray-500">Anon key is public-ish, but this is still a demo. Don’t store real passwords like this in production.</p>
-                    </div>
-
-                    <div class="md:col-span-2">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">Share link (auto-configures Cloud Sync for others)</label>
-                        <div class="flex gap-2 flex-wrap">
-                            <input id="cloudShareLink" type="text" readonly class="flex-1 min-w-60 px-3 py-2 border border-gray-300 rounded-lg font-mono text-xs bg-gray-50" value="">
-                            <button onclick="copyCloudShareLink()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg transition">Copy</button>
-                        </div>
-                        <p class="mt-1 text-[11px] text-gray-500">Send this link to your friend. When they open it once, their browser will save the Cloud Sync config.</p>
-                    </div>
-                </div>
-
-                <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                    <div class="flex items-center justify-between gap-3 flex-wrap">
-                        <h4 class="font-bold text-gray-800">Supabase SQL (run once)</h4>
-                        <button onclick="copyCloudSQL()" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-2 rounded-lg transition">Copy SQL</button>
-                    </div>
-                    <textarea id="cloudSql" class="mt-3 w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-xs" rows="10" readonly></textarea>
-                    <p class="mt-2 text-[11px] text-gray-500">For quickest demo: this SQL disables RLS so the anon key can read/write. For a real production system, you must use Supabase Auth + RLS policies + hashed passwords.</p>
-                </div>
-
-                <div class="flex gap-3 flex-wrap">
-                    <button onclick="saveCloudSync()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg transition">Save</button>
-                    <button onclick="testCloudSync()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition">Test Connection</button>
-                    <button onclick="disableCloudSync()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg transition">Disable Cloud</button>
-                    <button onclick="closeCloudSync()" class="ml-auto bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg transition">Close</button>
-                </div>
-
-                <div id="cloudSyncMsg" class="hidden bg-indigo-50 border border-indigo-200 text-indigo-800 px-4 py-3 rounded-lg text-sm"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Publish / Deploy Modal -->
-    <div id="publishModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-        <div class="bg-white rounded-2xl card-shadow p-6 w-full max-w-3xl my-8">
-            <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
-                <h3 class="text-2xl font-bold text-gray-800 flex items-center gap-2">🚀 Publish / Deploy</h3>
-                <button onclick="closePublishModal()" class="text-gray-400 hover:text-gray-600 transition" aria-label="Close">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-
-            <div class="space-y-6 text-gray-700">
-                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                    <p class="font-semibold text-amber-900 mb-1">Important (read this):</p>
-                    <p class="text-sm text-amber-800">This app stores users + passwords in <span class="font-mono">localStorage</span> (browser only). If you publish it, every visitor will have their own separate user database on their own device. For a real production login system, you need a backend + database.</p>
-                </div>
-
-                <div>
-                    <h4 class="text-lg font-bold text-gray-800 mb-2">Option A — GitHub Pages (free + easiest)</h4>
-                    <ol class="list-decimal ml-6 space-y-1 text-sm">
-                        <li>Create a GitHub repo (example: <span class="font-mono">login-system-pro</span>).</li>
-                        <li>Upload <span class="font-mono">index.html</span>, <span class="font-mono">styles.css</span>, <span class="font-mono">app.js</span> to the repo.</li>
-                        <li>Go to <span class="font-semibold">Settings → Pages</span>.</li>
-                        <li>Choose <span class="font-semibold">Deploy from a branch</span> → branch <span class="font-mono">main</span> → folder <span class="font-mono">/root</span>.</li>
-                        <li>Wait ~1 minute → you get a URL like <span class="font-mono">https://yourname.github.io/login-system-pro</span>.</li>
-                    </ol>
-                </div>
-
-                <div>
-                    <h4 class="text-lg font-bold text-gray-800 mb-2">Option B — Netlify (free + great for custom domains)</h4>
-                    <ol class="list-decimal ml-6 space-y-1 text-sm">
-                        <li>Go to <span class="font-semibold">netlify.com</span> → sign in.</li>
-                        <li>Drag-and-drop your project folder OR connect your GitHub repo.</li>
-                        <li>Build settings: none needed (static site).</li>
-                        <li>Netlify gives you a URL like <span class="font-mono">https://something.netlify.app</span>.</li>
-                        <li>To use <span class="font-mono">www.yourdomain.com</span>: <span class="font-semibold">Site settings → Domain management → Add domain</span>.</li>
-                    </ol>
-                </div>
-
-                <div>
-                    <h4 class="text-lg font-bold text-gray-800 mb-2">Option C — Vercel / Cloudflare Pages</h4>
-                    <p class="text-sm">Both are similar: import the GitHub repo → deploy as a static site → then add a custom domain in the dashboard.</p>
-                </div>
-
-                <div>
-                    <h4 class="text-lg font-bold text-gray-800 mb-2">Custom Domain (like www.login.com)</h4>
-                    <div class="text-sm space-y-2">
-                        <p>1) You must <span class="font-semibold">buy the domain</span> first (Namecheap, GoDaddy, Cloudflare Registrar, etc.).</p>
-                        <p>2) In your hosting dashboard (Netlify/Vercel/Cloudflare/GitHub Pages), add the domain.</p>
-                        <p>3) Update your domain DNS:</p>
-                        <ul class="list-disc ml-6 space-y-1">
-                            <li><span class="font-mono">www</span> usually becomes a <span class="font-semibold">CNAME</span> to your host (Netlify/Vercel gives you the exact value).</li>
-                            <li>The root domain <span class="font-mono">login.com</span> is usually an <span class="font-semibold">A record</span> or <span class="font-semibold">ALIAS/ANAME</span> depending on provider.</li>
-                        </ul>
-                        <p>4) Turn on HTTPS (most hosts do it automatically with Let’s Encrypt).</p>
-                    </div>
-                </div>
-
-                <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                    <h4 class="text-lg font-bold text-gray-800 mb-2">Want a real login system?</h4>
-                    <p class="text-sm text-gray-700">To make accounts work across devices (real “legit” auth), you need a backend (Node/Express, Firebase, Supabase, etc.), hashed passwords, and a database. If you want, tell me your preferred backend and I’ll wire it up.</p>
-                </div>
-
-                <div class="flex gap-3 flex-wrap">
-                    <button onclick="copyDeployChecklist()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg transition">Copy checklist</button>
-                    <button onclick="closePublishModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg transition">Close</button>
-                </div>
-
-                <textarea id="deployChecklist" class="w-full hidden"></textarea>
-            </div>
-        </div>
-    </div>
-
-    <!-- Manage User Modal (Owner Only) -->
-    <div id="manageUserModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl card-shadow p-6 w-full max-w-md">
-            <div class="flex items-center justify-between gap-3 mb-4">
-                <div>
-                    <h3 class="text-xl font-bold text-gray-800">👑 Manage User</h3>
-                    <p class="text-sm text-gray-500">Reset password or delete account. (Passwords are not revealed.)</p>
-                </div>
-                <button onclick="closeManageUser()" class="text-gray-400 hover:text-gray-600 transition" aria-label="Close">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-
-            <div id="manageUserMsg" class="hidden mb-4 px-4 py-3 rounded-lg text-sm"></div>
-
-            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
-                <p class="text-sm text-gray-700"><span class="font-semibold">User:</span> <span id="manageUserDisplay"></span></p>
-                <p class="text-sm text-gray-700"><span class="font-semibold">Username:</span> @<span id="manageUserUsername"></span></p>
-            </div>
-
-            <div class="space-y-3">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Set New Password</label>
-                    <input id="manageNewPassword" type="password" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500" placeholder="New password (min 6 chars)">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
-                    <input id="manageConfirmPassword" type="password" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500" placeholder="Confirm new password">
-                </div>
-
-                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                    <div class="flex items-center justify-between gap-3 flex-wrap">
-                        <p class="text-sm font-bold text-amber-900">Temporary Password</p>
-                        <span class="text-[11px] text-amber-800">Does not reveal current password</span>
-                    </div>
-                    <p class="mt-1 text-[11px] text-amber-800">Generate sets a new temporary password. Copy it and send it to the user. You can also force them to change it on next login.</p>
-                    <div class="mt-3 flex gap-2 flex-wrap">
-                        <input id="manageTempPassword" type="text" readonly class="flex-1 min-w-56 px-3 py-2 border border-amber-200 rounded-lg font-mono text-sm bg-white" placeholder="Click Generate…">
-                        <button onclick="generateTempPassword()" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg transition font-semibold">Generate</button>
-                        <button onclick="copyTempPassword()" class="bg-gray-900 hover:bg-black text-white px-4 py-2 rounded-lg transition font-semibold">Copy</button>
-                    </div>
-                </div>
-
-                <label class="flex items-center gap-2 text-sm text-gray-700">
-                    <input id="manageRequirePasswordChange" type="checkbox" class="w-4 h-4 text-indigo-600" checked>
-                    Force password change on next login
-                </label>
-
-                <label class="flex items-center gap-2 text-sm text-gray-700">
-                    <input id="manageDisable2FA" type="checkbox" class="w-4 h-4 text-indigo-600">
-                    Disable 2FA for this user
-                </label>
-
-                <div class="flex gap-3 pt-2">
-                    <button onclick="closeManageUser()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-semibold transition">Cancel</button>
-                    <button onclick="saveManagedUser()" class="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">Save</button>
-                </div>
-
-                <div class="border-t border-gray-200 pt-4">
-                    <button onclick="ownerDeleteUser()" class="w-full bg-red-50 hover:bg-red-100 text-red-700 py-3 rounded-lg font-semibold transition">🗑️ Delete this account</button>
-                    <p class="mt-2 text-[11px] text-gray-500">Demo note: this is a front-end app. In production, password resets and deletes should be done via secure server-side admin tooling.</p>
+                        <input type="text" id="chatInput" class="flex-1 p-3 rounded-xl border border-gray-200 dark:border-gray-700 outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-800" placeholder="Type a message...">
+                        <button type="submit" class="p-3 bg-purple-600 text-white rounded-xl w-12 flex items-center justify-center hover:bg-purple-700 transition-transform active:scale-95">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Forced Password Change Modal -->
-    <div id="forcePasswordModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl card-shadow p-8 w-full max-w-md">
-            <div class="flex items-center justify-between mb-4">
-                <div>
-                    <h3 class="text-xl font-bold text-gray-800">🔐 Password Update Required</h3>
-                    <p class="text-sm text-gray-500">Your password was reset by the Owner. Please set a new one to continue.</p>
-                </div>
-                <button onclick="logoutForcedPassword()" class="text-gray-400 hover:text-gray-600 transition" aria-label="Logout">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
+        <!-- Manage Group Members Modal -->
+        <div id="groupMembersModal" class="hidden glass w-full max-w-md p-8 rounded-3xl shadow-2xl relative z-10">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
+            <div class="flex items-center space-x-3 mb-6">
+                <div class="w-10 h-10 bg-emerald-500 text-black rounded-xl flex items-center justify-center"><i class="fas fa-users"></i></div>
+                <h2 class="text-2xl font-bold">Group Authority</h2>
             </div>
-
-            <div id="forcePassError" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4"></div>
-
+            
             <div class="space-y-4">
                 <div>
-                    <label class="block text-gray-700 font-medium mb-2">New Password</label>
-                    <input type="password" id="forceNewPassword" class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus focus:outline-none focus:border-indigo-500 transition" placeholder="Enter new password (min 6 chars)">
-                </div>
-                <div>
-                    <label class="block text-gray-700 font-medium mb-2">Confirm New Password</label>
-                    <input type="password" id="forceConfirmPassword" class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus focus:outline-none focus:border-indigo-500 transition" placeholder="Confirm new password">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-2">Active Members</label>
+                    <div id="groupMembersList" class="space-y-2 mb-6 max-h-48 overflow-y-auto custom-scrollbar bg-black/20 p-2 rounded-2xl">
+                        <!-- Members will be injected here -->
+                    </div>
                 </div>
 
-                <div class="flex gap-3 pt-2">
-                    <button onclick="logoutForcedPassword()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-semibold transition">Logout</button>
-                    <button onclick="saveForcedPassword()" class="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">Save</button>
+                <div class="p-4 bg-white/5 rounded-2xl border border-white/10">
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-3">Invite Member</label>
+                    <div class="flex space-x-2">
+                        <input type="text" id="addMemberUsername" class="flex-1 p-3 text-sm bg-black/40 border-none outline-none focus:ring-1 focus:ring-emerald-500 transition-all" placeholder="Enter username...">
+                        <button onclick="addMemberToGroup()" class="px-4 py-2 bg-emerald-500 text-black rounded-xl font-bold text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all">Add</button>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Chat Modal -->
-    <div id="chatModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl card-shadow w-full max-w-5xl h-[740px] flex flex-col overflow-hidden">
-            <!-- Header -->
-            <div class="bg-gradient-to-r from-indigo-500 to-purple-600 p-4 text-white flex items-center justify-between gap-3">
-                <div class="flex items-center gap-2 min-w-0">
-                    <span class="text-2xl">💬</span>
-                    <div class="min-w-0">
-                        <h3 class="font-bold text-lg truncate" id="chatTitle">Chat</h3>
-                        <p class="text-xs opacity-80 truncate" id="chatOnlineCount">Connecting...</p>
+        <!-- 2FA Setup Modal -->
+        <div id="tfaModal" class="hidden glass w-full max-w-md p-8 rounded-2xl shadow-2xl relative">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            <h2 class="text-2xl font-bold mb-4">Security Settings</h2>
+            <div id="tfaSetup" class="space-y-4">
+                <p class="text-sm text-gray-500">Enable 2FA to secure your account with Google Authenticator.</p>
+                <div id="qrcode" class="mx-auto bg-white p-2 rounded-lg w-fit"></div>
+                <div class="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-xs font-mono break-all text-center" id="tfaSecretKey"></div>
+                <input type="text" id="tfaVerifyCode" maxlength="6" class="w-full p-3 text-center text-xl font-bold tracking-widest rounded-lg border" placeholder="Verify Code">
+                <button onclick="confirmEnable2FA()" class="btn-primary w-full p-3 rounded-lg font-semibold">Enable 2FA</button>
+            </div>
+            <div id="tfaActive" class="hidden space-y-4 text-center">
+                <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-2xl"><i class="fas fa-check"></i></div>
+                <h3 class="text-xl font-bold">2FA is Active</h3>
+                <p class="text-sm text-gray-500">Your account is protected by two-factor authentication.</p>
+                <button onclick="disable2FA()" class="w-full p-3 border border-red-200 text-red-600 rounded-lg font-semibold hover:bg-red-50">Disable 2FA</button>
+            </div>
+        </div>
+        
+        <!-- Owner Panel Modal -->
+        <div id="ownerPanelModal" class="hidden glass w-full max-w-5xl h-[700px] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-rose-500 text-white flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-crown text-2xl"></i>
+                    <div>
+                        <h2 class="text-xl font-bold">Owner Panel</h2>
+                        <p class="text-rose-100 text-xs uppercase font-bold tracking-widest">Supreme Control</p>
+                    </div>
+                </div>
+                <button onclick="closeModal()" class="text-white/80 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="flex-1 flex overflow-hidden">
+                <div class="w-64 border-r border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-950/50 p-4 space-y-2">
+                    <button onclick="openOwnerPanel()" class="w-full text-left p-3 rounded-xl bg-white dark:bg-gray-800 shadow-sm font-bold text-sm text-rose-600"><i class="fas fa-users mr-2"></i> User Management</button>
+                    <button onclick="checkDatabaseHealth()" class="w-full text-left p-3 rounded-xl hover:bg-white dark:hover:bg-gray-800 text-sm font-medium text-gray-600 dark:text-gray-400"><i class="fas fa-stethoscope mr-2"></i> Database Doctor</button>
+                    <button onclick="openCloudSync()" class="w-full text-left p-3 rounded-xl hover:bg-white dark:hover:bg-gray-800 text-sm font-medium text-gray-600 dark:text-gray-400"><i class="fas fa-cloud mr-2"></i> Cloud Sync Control</button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
+                    <div class="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-bold">Supreme Control</h3>
+                            <p class="text-[10px] text-emerald-400 uppercase font-bold tracking-widest">Global Studio Management</p>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-2xl font-black text-white" id="totalUsersCount">--</div>
+                            <div class="text-[9px] text-gray-400 uppercase font-bold">Total Accounts</div>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="text-left text-xs text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">
+                                    <th class="pb-3 font-bold">User</th>
+                                    <th class="pb-3 font-bold">Role</th>
+                                    <th class="pb-3 font-bold text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="userTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Magic Edit Confirmation -->
+        <div id="magicEditModal" class="hidden glass w-full max-w-sm p-6 rounded-2xl shadow-2xl relative text-center">
+            <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl"><i class="fas fa-magic"></i></div>
+            <h2 class="text-xl font-bold mb-2">Magic Style?</h2>
+            <p class="text-sm text-gray-500 mb-6">Apply a randomized professional theme to this user's page?</p>
+            <div class="flex space-x-2">
+                <button onclick="applyMagicStyle()" class="flex-1 p-3 bg-blue-600 text-white rounded-xl font-bold">Apply</button>
+                <button onclick="closeModal()" class="flex-1 p-3 bg-gray-100 dark:bg-gray-800 rounded-xl font-bold">Cancel</button>
+            </div>
+        </div>
+
+        <!-- Manage User Modal -->
+        <div id="manageUserModal" class="hidden glass w-full max-w-md p-8 rounded-2xl shadow-2xl relative">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            <h2 class="text-2xl font-bold mb-6" id="manageUserTitle">Manage User</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">User Role</label>
+                    <select id="manageUserRole" class="w-full p-2 rounded-lg border border-gray-200 outline-none">
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div class="flex items-center space-x-2 p-3 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-xl">
+                    <input type="checkbox" id="manageUserMustChange" class="w-4 h-4 rounded">
+                    <label for="manageUserMustChange" class="text-xs font-bold">Force password change on next login</label>
+                </div>
+                <button onclick="saveManageUser()" class="btn-primary w-full p-3 rounded-lg font-semibold">Update User</button>
+                <hr>
+                <button onclick="deleteSelectedUser()" class="w-full p-3 bg-red-100 text-red-600 rounded-lg font-bold hover:bg-red-200">Delete Account</button>
+            </div>
+        </div>
+
+        <!-- Cloud Sync Modal -->
+        <div id="cloudSyncModal" class="hidden glass w-full max-w-md p-8 rounded-3xl shadow-2xl relative z-10">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
+            <div class="flex items-center space-x-3 mb-6">
+                <div class="w-10 h-10 bg-purple-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/30"><i class="fas fa-cloud"></i></div>
+                <h2 class="text-2xl font-bold">Cloud Sync</h2>
+            </div>
+
+            <div class="space-y-6">
+                <!-- Status & Toggle -->
+                <div class="p-5 bg-white/5 rounded-2xl border border-white/10">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-gray-400">Master Switch</span>
+                            <div id="cloudStatusBadge" class="px-2 py-0.5 rounded-full text-[8px] font-bold bg-gray-500 text-white uppercase">OFFLINE</div>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="cloudEnabledToggle" class="sr-only peer" onchange="toggleCloudSync()">
+                            <div class="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+                        </label>
+                    </div>
+                    <p class="text-[10px] text-gray-500 leading-relaxed">When enabled, SaebMC Studio syncs all users, messages, and groups to your shared Supabase cluster.</p>
+                </div>
+
+                <!-- Inputs -->
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Supabase Project URL</label>
+                        <input type="text" id="syncUrl" class="w-full p-3 text-xs font-mono bg-black/40 border-none outline-none focus:ring-1 focus:ring-purple-500 transition-all" value="https://kuqynhfcfucxyqeldcli.supabase.co">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Anon Public Key</label>
+                        <input type="password" id="syncKey" class="w-full p-3 text-xs font-mono bg-black/40 border-none outline-none focus:ring-1 focus:ring-purple-500 transition-all" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1cXluaGZjZnVjeHlxZWxkY2xpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc5MzAyNDAsImV4cCI6MjA4MzUwNjI0MH0.OPm7SlyWPcBAowyQdMXDlzLBtqe-GEZEGHlqsQjVcz8">
                     </div>
                 </div>
 
-                <div class="flex items-center gap-2">
+                <!-- Actions -->
+                <div class="grid grid-cols-2 gap-3 pt-2">
+                    <button onclick="testCloudConnection()" class="p-3 bg-white/5 border border-white/10 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-white/10 transition-all">
+                        <i class="fas fa-plug mr-2"></i> Test
+                    </button>
+                    <button onclick="saveCloudConfig()" class="p-3 bg-purple-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-purple-600/30">
+                        <i class="fas fa-save mr-2"></i> Save
+                    </button>
+                </div>
 
-                    <div id="chatOwnerTools" class="hidden flex gap-2 flex-wrap">
-                        <button onclick="clearCurrentChat()" class="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg transition">Clear</button>
-                        <button onclick="toggleChatIds()" class="text-xs bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-lg transition">IDs</button>
-                    </div>
-
-                    <button onclick="closeChat()" class="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition" aria-label="Close">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
+                <div class="pt-2">
+                    <button onclick="checkDatabaseHealth()" class="w-full p-3 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-500/20 transition-all">
+                        <i class="fas fa-stethoscope mr-2"></i> Run Deep Diagnostics
                     </button>
                 </div>
             </div>
+        </div>
 
-            <!-- Body: Sidebar + Messages -->
-            <div class="flex-1 min-h-0 flex">
-                <!-- Sidebar -->
-                <aside class="w-full max-w-[520px] border-r border-gray-200 bg-white flex flex-col min-h-0">
-                    <!-- Tabs -->
-                    <div class="p-3 border-b border-gray-200 bg-white">
-                        <div class="flex gap-2 flex-wrap">
-                            <button id="chatTabPublic" onclick="setChatMode('public')" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white">Public</button>
-                            <button id="chatTabDm" onclick="setChatMode('dm')" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gray-100 text-gray-700">DMs</button>
-                            <button id="chatTabGroup" onclick="setChatMode('group')" class="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gray-100 text-gray-700">Groups</button>
-                        </div>
-                    </div>
-
-                    <!-- Cloud warning -->
-                    <div id="chatCloudWarn" class="hidden px-3 py-2 text-xs bg-amber-50 border-b border-amber-200 text-amber-900"></div>
-
-                    <!-- Help -->
-                    <div class="px-3 py-2 border-b border-gray-200 bg-white">
-                        <div id="chatModeHelp" class="text-[11px] text-gray-500 leading-relaxed">
-                            Commands: <span class="font-mono">/help</span> <span class="font-mono">/me</span> <span class="font-mono">/dm @user msg</span> <span class="font-mono">/create-group name</span> <span class="font-mono">/join name</span> <span class="font-mono">/group name msg</span>
-                        </div>
-                    </div>
-
-                    <!-- Mode Controls -->
-                    <div class="p-3 space-y-3 overflow-y-auto min-h-0 flex-1 bg-gray-50">
-                        <!-- DM Studio (no dropdown) -->
-                        <div id="chatModeDmControls" class="hidden dmStudio">
-                            <div class="dmStudioHeader">
-                                <div>
-                                    <p class="font-extrabold text-gray-900">Direct Messages</p>
-                                    <p class="text-xs text-gray-500">Tap a user to start chatting privately.</p>
-                                </div>
-                            </div>
-                            <div class="dmStudioSearchWrap">
-                                <span class="dmStudioSearchIcon">⌕</span>
-                                <input id="dmSearch" type="text" class="dmStudioSearch" placeholder="Search users by name or @username…">
-                            </div>
-                            <div id="dmUserList" class="dmUserList"></div>
-
-                            <!-- Hidden legacy select kept for compatibility (not used by UI) -->
-                            <select id="dmUserSelect" class="hidden"></select>
-                        </div>
-
-                        <!-- Groups Studio (custom UI) -->
-                        <div id="chatModeGroupControls" class="hidden space-y-3">
-                            <!-- CREATE / QUICK ACTIONS BAR -->
-                            <div class="groupStudioTop">
-                                <div class="groupStudioTopLeft">
-                                    <div class="groupStudioTitle">
-                                        <div class="groupStudioGlyph">◆</div>
-                                        <div>
-                                            <p class="font-extrabold text-gray-900">Groups Studio</p>
-                                            <p class="text-xs text-gray-500">Create, discover, and manage group chats.</p>
-                                        </div>
-                                    </div>
-                                    <div class="groupStudioCreate">
-                                        <input id="newGroupName" type="text" class="groupStudioCreateInput" placeholder="New group name (3-32 chars, letters/numbers/_/-)">
-                                        <button onclick="createGroupFromUI()" class="groupStudioCreateBtn">Create</button>
-                                    </div>
-                                </div>
-
-                                <div class="groupStudioTopRight">
-                                    <button onclick="refreshGroupsUI()" class="groupStudioGhostBtn" title="Refresh groups">
-                                        <span class="text-lg">↻</span>
-                                        Refresh
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- DISCOVERY + FILTERS -->
-                            <div class="groupStudioToolbar">
-                                <div class="groupStudioSearchWrap">
-                                    <span class="groupStudioSearchIcon">⌕</span>
-                                    <input id="groupSearch" type="text" class="groupStudioSearch" placeholder="Search groups by name…">
-                                </div>
-                                <div class="groupStudioChips">
-                                    <button id="groupFilterJoined" onclick="setGroupFilter('joined')" class="groupChip">Joined</button>
-                                    <button id="groupFilterAll" onclick="setGroupFilter('all')" class="groupChip">Explore</button>
-                                </div>
-
-                                <!-- Keep hidden select for older handlers (JS keeps it updated) -->
-                                <select id="groupSelect" class="hidden"></select>
-                            </div>
-
-                            <!-- LIST -->
-                            <div class="groupStudioGridShell">
-                                <div id="groupList" class="groupStudioGrid"></div>
-                            </div>
-
-                            <!-- DOCK: ACTIVE GROUP + INVITE -->
-                            <div class="groupStudioDock">
-                                <div class="groupStudioNow">
-                                    <div class="groupStudioNowBadge">LIVE</div>
-                                    <div class="min-w-0">
-                                        <p class="groupStudioNowTitle" id="groupActiveTitle">No group selected</p>
-                                        <p class="groupStudioNowMeta" id="groupActiveMeta">Pick a group card to open it.</p>
-                                    </div>
-                                    <div class="groupStudioNowActions">
-                                        <button id="groupJoinBtn" onclick="joinCurrentOpenGroup()" class="hidden groupStudioPrimaryBtn">Join</button>
-                                        <button id="groupLeaveBtn" onclick="leaveCurrentGroup()" class="hidden groupStudioDangerBtn">Leave</button>
-                                    </div>
-                                </div>
-
-                                <div id="groupInviteControls" class="hidden groupStudioInvite">
-                                    <div class="flex items-center justify-between gap-3 flex-wrap">
-                                        <p class="font-bold text-gray-900">Add someone</p>
-                                        <p class="text-xs text-gray-500">Best with Cloud Sync membership table</p>
-                                    </div>
-                                    <div class="mt-2 flex gap-2 flex-wrap items-center">
-                                        <select id="groupInviteUserSelect" class="flex-1 min-w-56 px-3 py-2 border border-gray-300 rounded-lg text-sm"></select>
-                                        <button id="groupInviteBtn" onclick="inviteUserToCurrentGroup()" class="groupStudioPrimaryBtn">Add</button>
-                                    </div>
-                                    <div id="groupInviteNote" class="mt-2 text-[11px] text-gray-500"></div>
-                                </div>
-
-                                <div class="groupStudioHint">
-                                    Tip: Use <span class="font-mono">/create-group</span>, <span class="font-mono">/join</span>, <span class="font-mono">/group</span> in chat.
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </aside>
-
-                <!-- Messages Pane -->
-                <main class="flex-1 min-w-0 flex flex-col min-h-0 bg-gray-50">
-                    <div id="chatMessages" class="flex-1 min-h-0 p-4 overflow-y-auto space-y-3">
-                        <div class="text-center text-gray-400 text-sm py-8">
-                            <span class="text-3xl block mb-2">💬</span>
-                            Loading messages...
-                        </div>
-                    </div>
-
-                    <div class="p-3 border-t border-gray-200 bg-white">
-                        <div class="flex gap-2">
-                            <input type="text" id="chatInput" class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500 transition" placeholder="Type a message or /help" onkeypress="if(event.key==='Enter')sendMessage()">
-                            <button onclick="sendMessage()" class="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition flex items-center gap-2">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
-                                </svg>
-                                Send
-                            </button>
-                        </div>
-                    </div>
-                </main>
-            </div>
+        <!-- Notifications Modal -->
+        <div id="notificationsModal" class="hidden glass w-full max-w-md p-8 rounded-2xl shadow-2xl relative">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            <h2 class="text-2xl font-bold mb-6">Notifications</h2>
+            <div id="notificationsList" class="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2"></div>
+            <button onclick="clearNotifications()" class="w-full mt-6 p-2 text-xs font-bold text-gray-400 hover:text-purple-600 uppercase tracking-widest">Clear All</button>
         </div>
     </div>
 
-
-    <!-- Notifications Modal -->
-    <div id="notificationsModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl card-shadow p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div class="flex items-center justify-between gap-3 mb-4">
-                <div>
-                    <h3 class="text-2xl font-bold text-gray-800 flex items-center gap-2">🔔 Notifications</h3>
-                    <p class="text-sm text-gray-500" id="notifStatusLine">Loading…</p>
-                </div>
-                <button onclick="closeNotifications()" class="text-gray-400 hover:text-gray-600 transition" aria-label="Close">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-
-            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
-                <div class="flex items-center justify-between gap-3 flex-wrap">
-                    <p class="text-sm text-gray-700">
-                        Notifications work best when you <b>install</b> the site as a PWA.
-                        They’ll show for new DMs, mentions, and group messages.
-                    </p>
-                    <div class="flex gap-2 flex-wrap">
-                        <button onclick="requestNotificationPermission()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg transition text-sm font-semibold">Enable</button>
-                        <button onclick="sendTestNotification()" class="bg-gray-900 hover:bg-black text-white px-4 py-2 rounded-lg transition text-sm font-semibold">Test</button>
-                    </div>
-                </div>
-                <p class="mt-2 text-[11px] text-gray-500">Note: On iOS, notifications require iOS 16.4+ and adding to Home Screen.</p>
-            </div>
-
-            <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
-                <h4 class="font-bold text-gray-800">Inbox</h4>
-                <div class="flex gap-2 flex-wrap">
-                    <button onclick="markAllNotificationsRead()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg transition text-sm font-semibold">Mark all read</button>
-                    <button onclick="clearNotifications()" class="bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2 rounded-lg transition text-sm font-semibold">Clear</button>
-                </div>
-            </div>
-
-            <div id="notifList" class="space-y-2"></div>
-        </div>
-    </div>
-
-    <!-- Toast Host (top-right) -->
-    <div id="toastHost" class="fixed top-4 right-4 z-[70] space-y-2"></div>
-
-    <!-- Chat Editor Modal (Owner Only) -->
-    <div id="chatEditorModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-        <div class="bg-white rounded-2xl card-shadow p-6 w-full max-w-4xl my-8 max-h-[90vh] overflow-y-auto">
-            <div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
-                <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">🎨 Chat Editor <span class="text-sm bg-red-500 text-white px-2 py-1 rounded-full">Owner Only</span></h2>
-                <button onclick="closeChatEditor()" class="text-gray-400 hover:text-gray-600 transition" aria-label="Close">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-            
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Editor Controls -->
-                <div class="space-y-4">
-                    <!-- Appearance -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">🎨 Appearance</h3>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Chat Background</label>
-                                <input type="color" id="chatBgColor" value="#f9fafb" class="w-full h-10 rounded-lg cursor-pointer">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Header Color</label>
-                                <input type="color" id="chatHeaderColor" value="#6366f1" class="w-full h-10 rounded-lg cursor-pointer">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">My Bubbles</label>
-                                <input type="color" id="chatMyBubbleColor" value="#6366f1" class="w-full h-10 rounded-lg cursor-pointer">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Others' Bubbles</label>
-                                <input type="color" id="chatOtherBubbleColor" value="#ffffff" class="w-full h-10 rounded-lg cursor-pointer">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">My Text Color</label>
-                                <input type="color" id="chatMyTextColor" value="#ffffff" class="w-full h-10 rounded-lg cursor-pointer">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Others' Text Color</label>
-                                <input type="color" id="chatOtherTextColor" value="#1f2937" class="w-full h-10 rounded-lg cursor-pointer">
-                            </div>
-                        </div>
-                        <div class="mt-3">
-                            <label class="block text-gray-700 text-sm font-medium mb-1">Bubble Roundness</label>
-                            <input type="range" id="chatBubbleRadius" min="0" max="24" value="16" class="w-full">
-                            <div class="flex justify-between text-xs text-gray-500">
-                                <span>Square</span>
-                                <span>Rounded</span>
-                            </div>
-                        </div>
-                        <div class="mt-3">
-                            <label class="block text-gray-700 text-sm font-medium mb-1">Font Size</label>
-                            <select id="chatFontSize" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                                <option value="12">Small</option>
-                                <option value="14" selected>Normal</option>
-                                <option value="16">Large</option>
-                                <option value="18">Extra Large</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <!-- Features -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">⚙️ Features</h3>
-                        <div class="space-y-2">
-                            <label class="flex items-center gap-2">
-                                <input type="checkbox" id="chatEnableDMs" checked class="w-4 h-4 text-indigo-600">
-                                <span class="text-gray-700 text-sm">Enable Direct Messages</span>
-                            </label>
-                            <label class="flex items-center gap-2">
-                                <input type="checkbox" id="chatEnableGroups" checked class="w-4 h-4 text-indigo-600">
-                                <span class="text-gray-700 text-sm">Enable Groups</span>
-                            </label>
-                            <label class="flex items-center gap-2">
-                                <input type="checkbox" id="chatEnableCommands" checked class="w-4 h-4 text-indigo-600">
-                                <span class="text-gray-700 text-sm">Enable /Commands</span>
-                            </label>
-                            <label class="flex items-center gap-2">
-                                <input type="checkbox" id="chatShowTimestamps" checked class="w-4 h-4 text-indigo-600">
-                                <span class="text-gray-700 text-sm">Show Timestamps</span>
-                            </label>
-                            <label class="flex items-center gap-2">
-                                <input type="checkbox" id="chatShowBadges" checked class="w-4 h-4 text-indigo-600">
-                                <span class="text-gray-700 text-sm">Show Role Badges (👑⭐)</span>
-                            </label>
-                            <label class="flex items-center gap-2">
-                                <input type="checkbox" id="chatEnableEmojis" checked class="w-4 h-4 text-indigo-600">
-                                <span class="text-gray-700 text-sm">Enable Emoji Reactions</span>
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <!-- Moderation -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">🛡️ Moderation</h3>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Max Message Length</label>
-                                <input type="number" id="chatMaxLength" value="500" min="50" max="2000" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Slow Mode (seconds between messages)</label>
-                                <input type="number" id="chatSlowMode" value="0" min="0" max="60" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-medium mb-1">Banned Words (comma separated)</label>
-                                <textarea id="chatBannedWords" class="w-full px-3 py-2 border border-gray-300 rounded-lg" rows="2" placeholder="word1, word2, word3"></textarea>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Welcome Message -->
-                    <div class="bg-gray-50 rounded-xl p-4">
-                        <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">👋 Welcome Message</h3>
-                        <textarea id="chatWelcomeMsg" class="w-full px-3 py-2 border border-gray-300 rounded-lg" rows="2" placeholder="Welcome to the chat! Be respectful and have fun."></textarea>
-                    </div>
-                    
-                    <div class="flex gap-3">
-                        <button onclick="resetChatSettings()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-semibold transition">
-                            🔄 Reset to Default
-                        </button>
-                        <button onclick="saveChatSettings()" class="flex-1 bg-gradient-to-r from-pink-500 to-rose-500 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">
-                            💾 Save Chat Settings
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Live Preview -->
-                <div class="bg-gray-100 rounded-xl p-4 sticky top-0">
-                    <h3 class="font-bold text-gray-800 mb-3">📱 Live Preview</h3>
-                    <div id="chatPreview" class="rounded-xl overflow-hidden min-h-[400px]"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Particles Container -->
-    <div id="particlesContainer" class="particles hidden"></div>
-
-    <!-- Custom JavaScript -->
-    <script src="app.js"></script>
-    
-    <!-- Register Service Worker for Offline Support -->
     <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then((registration) => {
-                        console.log('✅ Service Worker registered:', registration.scope);
-                        
-                        // Check for updates periodically
-                        setInterval(() => {
-                            registration.update();
-                        }, 60 * 60 * 1000); // Check every hour
-                    })
-                    .catch((error) => {
-                        console.log('❌ Service Worker registration failed:', error);
-                    });
-            });
-            
-            // Show install prompt for PWA
-            let deferredPrompt;
-            window.addEventListener('beforeinstallprompt', (e) => {
-                e.preventDefault();
-                deferredPrompt = e;
-                
-                // Show custom install button (you could add a button in the UI)
-                console.log('📱 App can be installed! Use browser menu or call installApp()');
-                
-                // Make install function available globally
-                window.installApp = async () => {
-                    if (deferredPrompt) {
-                        deferredPrompt.prompt();
-                        const { outcome } = await deferredPrompt.userChoice;
-                        console.log(`User ${outcome === 'accepted' ? 'accepted' : 'dismissed'} the install prompt`);
-                        deferredPrompt = null;
-                    }
-                };
-            });
-            
-            // Notify when app is installed
-            window.addEventListener('appinstalled', () => {
-                console.log('🎉 App installed successfully!');
-                deferredPrompt = null;
-            });
-            
-            // Handle offline/online status
-            window.addEventListener('online', () => {
-                console.log('🌐 Back online!');
-                document.body.classList.remove('offline-mode');
-            });
-            
-            window.addEventListener('offline', () => {
-                console.log('📴 Gone offline - using cached data');
-                document.body.classList.add('offline-mode');
-            });
+        // Fix for modal closing by clicking outside
+        window.onclick = function(event) {
+            const overlay = document.getElementById('modalOverlay');
+            if (event.target == overlay) {
+                closeModal();
+            }
+        }
+        // ESC key to close modal
+        window.onkeydown = function(event) {
+            if (event.key === 'Escape') {
+                closeModal();
+            }
         }
     </script>
+    <script src="app.js" defer></script>
 </body>
 </html>
